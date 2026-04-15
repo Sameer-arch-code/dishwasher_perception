@@ -1,0 +1,21 @@
+services:
+  dishwasher_perception:
+    container_name: dishwasher_perception
+    image: fbe-dockerreg.rwu.de/prj-iki-ros2/perception/yolo:jazzy
+    environment:
+      DISPLAY: $DISPLAY
+      ROS_DOMAIN_ID: $ROS_DOMAIN_ID
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,video,utility,graphics
+      QT_X11_NO_MITSHM: '1'
+    network_mode: host
+    privileged: true
+    stdin_open: true
+    runtime: "nvidia"
+    tty: true
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - $HOME/.Xauthority:/root/.Xauthority
+      - $ROS_BAGS:/root/rosbags/
+      - ../src/:/root/ros2_ws/src
+    command: tail -f /dev/null    
