@@ -583,11 +583,75 @@ class DishwasherPerceptionROS(Node):
             processed_mask = self.process_mask(mask)
             processed_mask = self.remove_small_regions(processed_mask, min_pixels=3500)
             processed_mask = self.remove_big_regions(processed_mask, max_pixels=25000)
+            # if processed_mask is not None:
+            #     window_title = f"Slice {info['index']:02d}: {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
+            #     cv.imshow(window_title, processed_mask
+                
+            # if processed_mask is not None:
+            #     edges = self.detect_edges(processed_mask)
+            #     window_title = f"Slice {info['index']:02d}: {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
+            #     cv.imshow(window_title, edges)
+
             if processed_mask is not None:
+                edges = self.detect_edges(processed_mask)
+                lines = self.find_horizontal_lines(edges)
                 window_title = f"Slice {info['index']:02d}: {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
-                cv.imshow(window_title, processed_mask)
+                self.display_horizontal_lines(edges, lines, window_title)
 
         cv.waitKey(1)
+
+
+    def display_horizontal_lines(self, mask, lines, window_title):
+        display = cv.cvtColor(mask, cv.COLOR_GRAY2BGR)
+        if lines is not None:
+            for line in lines:
+                x1, y1, x2, y2 = line[0]
+                cv.line(display, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv.imshow(window_title, display)
+
+
+    def find_horizontal_lines(self,edges, min_line_length=20, max_line_gap=30, hough_threshold=20):
+        """
+        Find horizontal lines using Hough Line Transform.
+        
+        Args:
+            edges: Binary edge image from Canny detection
+            min_line_length: Minimum length of line to detect (pixels)
+            max_line_gap: Maximum gap between line segments to connect (pixels) - higher = more agressive merging
+            hough_threshold: Minimum votes for a line to be detected
+        
+        Returns:
+            lines: List of detected lines as [x1, y1, x2, y2] or None
+        """
+        if edges is None:
+            return None
+        
+        lines = cv.HoughLinesP(
+            edges,
+            rho=1,
+            theta=np.pi/180,
+            threshold=hough_threshold,
+            minLineLength=min_line_length,
+            maxLineGap=max_line_gap
+        )
+        
+        return lines
+
+
+    def detect_edges(self,mask, canny_low=50, canny_high=150):
+        """
+        Apply Canny edge detection to the mask.
+        
+        Args:
+            mask: Input binary mask (black and white image)
+            canny_low: Lower threshold for Canny
+            canny_high: Upper threshold for Canny
+        
+        Returns:
+            edges: Binary image with detected edges
+        """
+        edges = cv.Canny(mask, canny_low, canny_high)
+        return edges
            
 
 
@@ -654,6 +718,8 @@ class DishwasherPerceptionROS(Node):
             return None
 
     # ── modified mask function ────────────────────────────────────────────────
+
+    
 
     def remove_big_regions(self, mask_img, max_pixels=500):
         """
