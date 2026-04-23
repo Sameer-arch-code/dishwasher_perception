@@ -26,8 +26,8 @@ from std_srvs.srv import Trigger
 # Constants
 TARGET_FRAME_ID = "base_link"
 PROCESS_MASK_OPEN_ITERATIONS = 1  # removes protrusions/lines
-PROCESS_MASK_ERODE_ITERATIONS = 1  # shrinks mask
-MASK_KERNEL_SIZE = (11, 11)          # removes noise
+PROCESS_MASK_ERODE_ITERATIONS = 0  # shrinks mask
+MASK_KERNEL_SIZE = (17, 17)          # removes noise
 
 # Depth viewer window name
 DEPTH_WINDOW_NAME = "Depth Image (click to measure)"
@@ -562,7 +562,32 @@ class DishwasherPerceptionROS(Node):
         self.update_depth_click_viewer()
 
     
-        self.depth_buckets(bucket_offset=30)
+        #self.depth_buckets(bucket_offset=30)
+
+        masks, slice_info = self.create_depth_slice_masks1(
+            start_m=0.85, end_m=1.15, discrete_size_m=0.05)
+
+        if not masks:
+            return
+
+        for mask, info in zip(masks, slice_info):
+            if info['num_pixels'] == 0:
+                continue
+
+            self.get_logger().info(
+                f"Slice {info['index']:3d}: [{info['near_mm']:.0f}, {info['far_mm']:.0f}] mm "
+                f"→ {info['num_pixels']} px"
+            )
+
+            #processed_mask = mask
+            processed_mask = self.process_mask(mask)
+            processed_mask = self.remove_small_regions(processed_mask, min_pixels=3500)
+            processed_mask = self.remove_big_regions(processed_mask, max_pixels=25000)
+            if processed_mask is not None:
+                window_title = f"Slice {info['index']:02d}: {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
+                cv.imshow(window_title, processed_mask)
+
+        cv.waitKey(1)
            
 
 
@@ -629,6 +654,240 @@ class DishwasherPerceptionROS(Node):
             return None
 
     # ── modified mask function ────────────────────────────────────────────────
+
+    def remove_big_regions(self, mask_img, max_pixels=500):
+        """
+        Remove all connected white regions bigger than max_pixels.
+        """
+        num_labels, labels, stats, _ = cv.connectedComponentsWithStats(mask_img, connectivity=8)
+
+        output = np.zeros_like(mask_img)
+        for label in range(1, num_labels):  # skip 0 — that's the background
+            area = stats[label, cv.CC_STAT_AREA]
+            if area <= max_pixels:
+                output[labels == label] = 255
+
+        return output
+
+    def remove_small_regions(self, mask_img, min_pixels=500):
+        """
+        Remove all connected white regions smaller than min_pixels.
+        """
+        num_labels, labels, stats, _ = cv.connectedComponentsWithStats(mask_img, connectivity=8)
+
+        output = np.zeros_like(mask_img)
+        for label in range(1, num_labels):  # skip 0 — that's the background
+            area = stats[label, cv.CC_STAT_AREA]
+            if area >= min_pixels:
+                output[labels == label] = 255
+
+        return output
+
+    def create_depth_slice_masks1(self, start_m, end_m, discrete_size_m, scale_to_color=True):
+        """
+        Create a list of binary masks, each covering a discrete slice along the
+        X-axis of TARGET_FRAME_ID (base_link), rather than raw camera depth.
+
+        The range [start_m, end_m] is divided into equal-width windows of
+        discrete_size_m along base_link X.  Each window produces one mask where
+        pixels whose back-projected X coordinate falls within that window are set
+        to 255, everything else to 0.
+
+        Args:
+            start_m        : Near edge of the zone of interest in base_link X, metres
+            end_m          : Far  edge of the zone of interest in base_link X, metres
+            discrete_size_m: Width of each slice in metres
+            scale_to_color : If True, resize every mask to the colour-image resolution
+
+        Returns:
+            masks      : list of np.ndarray (uint8), one per slice
+            slice_info : list of dicts with keys
+                        'index'      – 0-based slice index
+                        'near_mm'    – slice start in mm (base_link X)
+                        'far_mm'     – slice end   in mm (base_link X)
+                        'num_pixels' – non-zero pixels in this mask
+        """
+        if self.depth_image is None:
+            self.get_logger().warn('create_depth_slice_masks: No depth image available')
+            return [], []
+
+        if self.camera_info is None:
+            self.get_logger().warn('create_depth_slice_masks: No camera info available')
+            return [], []
+
+        # ── 1. Back-project every valid depth pixel into camera space ────────────
+        fx, fy = self.camera_info.k[0], self.camera_info.k[4]
+        cx, cy = self.camera_info.k[2], self.camera_info.k[5]
+
+        depth = self.depth_image.astype(np.float64)
+        valid = depth > 0
+        depth_m = np.where(valid, depth / 1000.0, 0.0)
+
+        h, w = depth.shape
+        u_grid, v_grid = np.meshgrid(np.arange(w), np.arange(h))
+
+        z      = depth_m[valid]
+        x_cam  = (u_grid[valid] - cx) * z / fx
+        y_cam  = (v_grid[valid] - cy) * z / fy
+        pts_cam = np.stack([x_cam, y_cam, z], axis=1)          # (N, 3)
+
+        # ── 2. Transform to base_link (TARGET_FRAME_ID) ───────────────────────────
+        pts_working = pts_cam.copy()
+
+        if self.depth_frame_id is not None:
+            mat = self._get_transform_matrix(self.depth_frame_id, TARGET_FRAME_ID)
+            if mat is not None:
+                R, t = mat[:3, :3], mat[:3, 3]
+                pts_working = (R @ pts_cam.T).T + t
+            else:
+                self.get_logger().warn(
+                    'create_depth_slice_masks: TF unavailable, falling back to camera frame',
+                    throttle_duration_sec=5.0,
+                )
+
+        # x_coords_world holds the base_link X for every valid pixel
+        x_coords_world = pts_working[:, 0]          # shape (N,)
+        valid_indices  = np.argwhere(valid)          # shape (N, 2) — (row, col) pairs
+
+        # ── 3. Build one mask per slice ───────────────────────────────────────────
+        start_mm         = start_m         * 1000.0
+        end_mm           = end_m           * 1000.0
+        discrete_size_mm = discrete_size_m * 1000.0
+        x_coords_mm      = x_coords_world  * 1000.0  # convert once for comparisons
+
+        num_slices = int(math.ceil((end_mm - start_mm) / discrete_size_mm))
+
+        self.get_logger().info(
+            f'create_depth_slice_masks (base_link X): '
+            f'{start_mm:.0f}–{end_mm:.0f} mm, '
+            f'slice={discrete_size_mm:.0f} mm → {num_slices} masks'
+        )
+
+        masks      = []
+        slice_info = []
+
+        for i in range(num_slices):
+            near_mm = start_mm + i * discrete_size_mm
+            far_mm  = min(near_mm + discrete_size_mm, end_mm)
+
+            # Select points whose base_link X falls in this window
+            in_slice = (x_coords_mm >= near_mm) & (x_coords_mm <= far_mm)
+            slice_indices = valid_indices[in_slice]   # (M, 2) — (row, col) in depth image
+
+            # Paint selected pixels into a depth-resolution mask
+            mask = np.zeros((h, w), dtype=np.uint8)
+            if slice_indices.shape[0] > 0:
+                mask[slice_indices[:, 0], slice_indices[:, 1]] = 255
+
+            num_pixels = int(slice_indices.shape[0])
+
+            if scale_to_color and self.color_width is not None and self.color_height is not None:
+                mask = cv.resize(
+                    mask,
+                    (self.color_width, self.color_height),
+                    interpolation=cv.INTER_NEAREST,
+                )
+
+            masks.append(mask)
+            slice_info.append({
+                'index':      i,
+                'near_mm':    near_mm,
+                'far_mm':     far_mm,
+                'num_pixels': num_pixels,
+            })
+
+            self.get_logger().debug(
+                f'  slice {i:3d}: [{near_mm:.0f}, {far_mm:.0f}] mm (base_link X) '
+                f'→ {num_pixels} px'
+            )
+
+        return masks, slice_info
+
+    def create_depth_slice_masks(self, start_m, end_m, discrete_size_m, scale_to_color=True):
+        """
+        Create a list of binary masks, each covering a discrete depth slice
+        from start_m to end_m.
+
+        The range [start_m, end_m] is divided into equal-width windows of
+        discrete_size_m.  Each window produces one mask where pixels whose
+        depth falls within that window are set to 255, everything else to 0.
+        The last slice is clipped to end_m even if the window would overshoot.
+
+        Args:
+            start_m        : Near edge of the zone of interest, in metres (e.g. 0.85)
+            end_m          : Far  edge of the zone of interest, in metres (e.g. 1.15)
+            discrete_size_m: Width of each slice in metres           (e.g. 0.10)
+            scale_to_color : If True, resize every mask to the colour-image resolution
+
+        Returns:
+            masks      : list of np.ndarray (uint8), one per slice
+            slice_info : list of dicts, each with keys
+                        'index'         – 0-based slice index
+                        'near_mm'       – slice start in mm
+                        'far_mm'        – slice end   in mm
+                        'num_pixels'    – non-zero pixels in this mask
+
+        Example:
+            masks, info = self.create_depth_slice_masks(
+                start_m=0.85, end_m=1.15, discrete_size_m=0.10
+            )
+            # Produces 3 masks covering [850,950), [950,1050), [1050,1150] mm
+        """
+        if self.depth_image is None:
+            self.get_logger().warn('create_depth_slice_masks: No depth image available')
+            return [], []
+
+        # Convert to millimetres for direct comparison with the depth image
+        start_mm        = start_m        * 1000.0
+        end_mm          = end_m          * 1000.0
+        discrete_size_mm = discrete_size_m * 1000.0
+
+        num_slices = int(math.ceil((end_mm - start_mm) / discrete_size_mm))
+
+        self.get_logger().info(
+            f'create_depth_slice_masks: {start_mm:.0f}–{end_mm:.0f} mm, '
+            f'slice={discrete_size_mm:.0f} mm → {num_slices} masks'
+        )
+
+        masks      = []
+        slice_info = []
+
+        for i in range(num_slices):
+            near_mm = start_mm + i * discrete_size_mm
+            far_mm  = min(near_mm + discrete_size_mm, end_mm)  # clip last slice
+
+            valid_mask = (
+                (self.depth_image > 0) &
+                (self.depth_image >= near_mm) &
+                (self.depth_image <= far_mm)
+            )
+
+            mask = np.zeros(self.depth_image.shape, dtype=np.uint8)
+            mask[valid_mask] = 255
+
+            num_pixels = int(np.count_nonzero(valid_mask))
+
+            if scale_to_color and self.color_width is not None and self.color_height is not None:
+                mask = cv.resize(
+                    mask,
+                    (self.color_width, self.color_height),
+                    interpolation=cv.INTER_NEAREST
+                )
+
+            masks.append(mask)
+            slice_info.append({
+                'index':      i,
+                'near_mm':    near_mm,
+                'far_mm':     far_mm,
+                'num_pixels': num_pixels,
+            })
+
+            self.get_logger().debug(
+                f'  slice {i:3d}: [{near_mm:.0f}, {far_mm:.0f}] mm  '
+                f'→ {num_pixels} px'
+            )
+
+        return masks, slice_info
 
     def depth_buckets(self, scale_to_color=True, bucket_offset=0):
         if self.depth_image is None or self.camera_info is None:
