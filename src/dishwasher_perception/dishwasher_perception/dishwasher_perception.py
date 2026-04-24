@@ -29,8 +29,13 @@ PROCESS_MASK_OPEN_ITERATIONS = 1  # removes protrusions/lines
 PROCESS_MASK_ERODE_ITERATIONS = 0  # shrinks mask
 MASK_KERNEL_SIZE = (17, 17)          # removes noise
 
+
+
 # Depth viewer window name
 DEPTH_WINDOW_NAME = "Depth Image (click to measure)"
+FILTERED_DEPTH_WINDOW = "Filtered Depth"
+
+DISHWASHER_THICKNESS = 0.2
 
 
 class DishwasherPerceptionROS(Node):
@@ -116,6 +121,10 @@ class DishwasherPerceptionROS(Node):
 
         # Set up click-to-depth on the main color window
         self.setup_color_click_viewer()
+
+        
+        cv.namedWindow(FILTERED_DEPTH_WINDOW, cv.WINDOW_NORMAL)
+        cv.resizeWindow(FILTERED_DEPTH_WINDOW, 848, 480)
 
         self.get_logger().info('DishwasherPerceptionROS Node initialized')
 
@@ -619,7 +628,7 @@ class DishwasherPerceptionROS(Node):
             f"→ {info['num_pixels']} px"
         )
 
-        processed_mask = mask
+
         #processed_mask = self.process_mask(mask)
         #processed_mask = self.remove_small_regions(processed_mask, min_pixels=3500)
         #processed_mask = self.remove_big_regions(processed_mask, max_pixels=25000)
@@ -630,11 +639,144 @@ class DishwasherPerceptionROS(Node):
         #     window_title = f"Slice {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
         #     self.display_horizontal_lines(edges, lines, window_title)
 
-        if processed_mask is not None:
+        if mask is not None:
             window_title = f"Slice {info['near_mm']:.0f}-{info['far_mm']:.0f}mm z={info['min_z_mm']:.0f}-{info['max_z_mm']:.0f}mm"
-            cv.imshow(window_title, processed_mask)
+            cv.imshow(window_title, mask)
+
+            left, right = self.find_leftright_pixels(mask)
+
+            if left is not None:
+                self.get_logger().info(f"Left:  x={left[0]}, y={left[1]}")
+                self.get_logger().info(f"Right: x={right[0]}, y={right[1]}")
+
+                left_pose  = self.estimate_pose(left[0],  left[1])
+                right_pose = self.estimate_pose(right[0], right[1])
+
+                self.get_logger().info(
+                    f"Left  3D: ({left_pose.position.x:.3f}, {left_pose.position.y:.3f}, {left_pose.position.z:.3f})"
+                )
+                self.get_logger().info(
+                    f"Right 3D: ({right_pose.position.x:.3f}, {right_pose.position.y:.3f}, {right_pose.position.z:.3f})"
+                )
+
+                filtered = self.create_filtered_depth_image(min_y_m = right_pose.position.y + DISHWASHER_THICKNESS, max_y_m = left_pose.position.y - DISHWASHER_THICKNESS)
+                if filtered is not None:
+                    display = cv.normalize(filtered, None, 0, 255, cv.NORM_MINMAX).astype(np.uint8)
+                    display = cv.applyColorMap(display, cv.COLORMAP_JET)
+                    cv.imshow(FILTERED_DEPTH_WINDOW, display)
 
         cv.waitKey(1)
+
+
+    # def create_filtered_depth_image(self, min_y_m=-0.1, max_y_m=0.1):
+    #     """
+    #     Filter depth image to only show points whose base_link Z falls within
+    #     [min_y_m, max_y_m]. Returns a filtered depth image for display.
+
+    #     Args:
+    #         min_y_m: Minimum Y in base_link frame (metres)
+    #         max_y_m: Maximum Y in base_link frame (metres)
+
+    #     Returns:
+    #         filtered: np.ndarray (same dtype as depth_image) with out-of-range
+    #                 pixels zeroed, or None if data unavailable
+    #     """
+    #     if self.depth_image is None or self.camera_info is None:
+    #         return None
+
+    #     fx, fy = self.camera_info.k[0], self.camera_info.k[4]
+    #     cx, cy = self.camera_info.k[2], self.camera_info.k[5]
+
+    #     depth   = self.depth_image.astype(np.float64)
+    #     depth_m = depth / 1000.0
+    #     valid   = (depth_m >= 0.01) & (depth_m <= 20.0)
+
+    #     h, w = depth.shape
+    #     u_grid, v_grid = np.meshgrid(np.arange(w), np.arange(h))
+
+    #     z     = depth_m[valid]
+    #     x_cam = (u_grid[valid] - cx) * z / fx
+    #     y_cam = (v_grid[valid] - cy) * z / fy
+    #     pts_cam = np.stack([x_cam, y_cam, z], axis=1)
+
+    #     pts_working = pts_cam.copy()
+    #     if self.depth_frame_id is not None:
+    #         mat = self._get_transform_matrix(self.depth_frame_id, TARGET_FRAME_ID)
+    #         if mat is not None:
+    #             R, t = mat[:3, :3], mat[:3, 3]
+    #             pts_working = (R @ pts_cam.T).T + t
+
+    #     valid_z = (pts_working[:, 1] >= min_y_m) & (pts_working[:, 1] <= max_y_m)
+    #     valid_indices = np.argwhere(valid)
+
+    #     filtered = np.zeros_like(self.depth_image)
+    #     keep_indices = valid_indices[valid_z]
+    #     if keep_indices.shape[0] > 0:
+    #         filtered[keep_indices[:, 0], keep_indices[:, 1]] = \
+    #             self.depth_image[keep_indices[:, 0], keep_indices[:, 1]]
+
+    #     return filtered
+
+    def create_filtered_depth_image(self, min_y_m=-0.1, max_y_m=0.1, min_z_m=0.35, max_z_m=0.7):
+        if self.depth_image is None or self.camera_info is None:
+            return None
+
+        fx, fy = self.camera_info.k[0], self.camera_info.k[4]
+        cx, cy = self.camera_info.k[2], self.camera_info.k[5]
+
+        depth   = self.depth_image.astype(np.float64)
+        depth_m = depth / 1000.0
+        valid   = (depth_m >= 0.01) & (depth_m <= 20.0)
+
+        h, w = depth.shape
+        u_grid, v_grid = np.meshgrid(np.arange(w), np.arange(h))
+
+        z     = depth_m[valid]
+        x_cam = (u_grid[valid] - cx) * z / fx
+        y_cam = (v_grid[valid] - cy) * z / fy
+        pts_cam = np.stack([x_cam, y_cam, z], axis=1)
+
+        pts_working = pts_cam.copy()
+        if self.depth_frame_id is not None:
+            mat = self._get_transform_matrix(self.depth_frame_id, TARGET_FRAME_ID)
+            if mat is not None:
+                R, t = mat[:3, :3], mat[:3, 3]
+                pts_working = (R @ pts_cam.T).T + t
+
+        valid_filter = (
+            (pts_working[:, 1] >= min_y_m) & (pts_working[:, 1] <= max_y_m) &
+            (pts_working[:, 2] >= min_z_m) & (pts_working[:, 2] <= max_z_m)
+        )
+        valid_indices = np.argwhere(valid)
+
+        filtered = np.zeros_like(self.depth_image)
+        keep_indices = valid_indices[valid_filter]
+        if keep_indices.shape[0] > 0:
+            filtered[keep_indices[:, 0], keep_indices[:, 1]] = \
+                self.depth_image[keep_indices[:, 0], keep_indices[:, 1]]
+
+        return filtered
+
+    def find_leftright_pixels(self, mask):
+        """
+        Find the leftmost and rightmost non-zero pixels in a binary mask.
+
+        Args:
+            mask: np.ndarray (uint8) binary mask
+
+        Returns:
+            left  : (x, y) of the leftmost non-zero pixel, or None if mask is empty
+            right : (x, y) of the rightmost non-zero pixel, or None if mask is empty
+        """
+        points = np.argwhere(mask > 0)
+
+        if points.shape[0] == 0:
+            return None, None
+
+        left  = (int(points[np.argmin(points[:, 1]), 1]), int(points[np.argmin(points[:, 1]), 0]))
+        right = (int(points[np.argmax(points[:, 1]), 1]), int(points[np.argmax(points[:, 1]), 0]))
+
+        return left, right
 
 
     def display_horizontal_lines(self, mask, lines, window_title):
