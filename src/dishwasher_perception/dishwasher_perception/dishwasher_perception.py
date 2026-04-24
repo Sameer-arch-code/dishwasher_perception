@@ -564,39 +564,75 @@ class DishwasherPerceptionROS(Node):
     
         #self.depth_buckets(bucket_offset=30)
 
-        masks, slice_info = self.create_depth_slice_masks1(
-            start_m=0.85, end_m=1.15, discrete_size_m=0.05)
+        # masks, slice_info = self.create_depth_slice_masks1(
+        #     start_m=0.85, end_m=1.15, discrete_size_m=0.05)
+            
 
-        if not masks:
+        # if not masks:
+        #     return
+
+        # for mask, info in zip(masks, slice_info):
+        #     if info['num_pixels'] == 0:
+        #         continue
+
+        #     self.get_logger().info(
+        #         f"Slice {info['index']:3d}: [{info['near_mm']:.0f}, {info['far_mm']:.0f}] mm "
+        #         f"→ {info['num_pixels']} px"
+        #     )
+
+        #     #processed_mask = mask
+        #     processed_mask = self.process_mask(mask)
+        #     processed_mask = self.remove_small_regions(processed_mask, min_pixels=3500)
+        #     processed_mask = self.remove_big_regions(processed_mask, max_pixels=25000)
+        #     # if processed_mask is not None:
+        #     #     window_title = f"Slice {info['index']:02d}: {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
+        #     #     cv.imshow(window_title, processed_mask
+                
+        #     # if processed_mask is not None:
+        #     #     edges = self.detect_edges(processed_mask)
+        #     #     window_title = f"Slice {info['index']:02d}: {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
+        #     #     cv.imshow(window_title, edges)
+
+        #     if processed_mask is not None:
+        #         edges = self.detect_edges(processed_mask)
+        #         lines = self.find_horizontal_lines(edges)
+        #         window_title = f"Slice {info['index']:02d}: {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
+        #         self.display_horizontal_lines(edges, lines, window_title)
+
+        # cv.waitKey(1)
+
+
+        mask, info = self.create_single_depth_slice_mask(
+            near_m=0.85,
+            far_m=0.9,
+            min_z_m=0.07,
+            max_z_m = 0.2,
+            scale_to_color=True,
+        )
+
+        if mask is None or info['num_pixels'] == 0:
+            self.get_logger().error ('door is closed!')
             return
 
-        for mask, info in zip(masks, slice_info):
-            if info['num_pixels'] == 0:
-                continue
+        self.get_logger().info(
+            f"Slice [{info['near_mm']:.0f}, {info['far_mm']:.0f}] mm "
+            f"→ {info['num_pixels']} px"
+        )
 
-            self.get_logger().info(
-                f"Slice {info['index']:3d}: [{info['near_mm']:.0f}, {info['far_mm']:.0f}] mm "
-                f"→ {info['num_pixels']} px"
-            )
+        processed_mask = mask
+        #processed_mask = self.process_mask(mask)
+        #processed_mask = self.remove_small_regions(processed_mask, min_pixels=3500)
+        #processed_mask = self.remove_big_regions(processed_mask, max_pixels=25000)
 
-            #processed_mask = mask
-            processed_mask = self.process_mask(mask)
-            processed_mask = self.remove_small_regions(processed_mask, min_pixels=3500)
-            processed_mask = self.remove_big_regions(processed_mask, max_pixels=25000)
-            # if processed_mask is not None:
-            #     window_title = f"Slice {info['index']:02d}: {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
-            #     cv.imshow(window_title, processed_mask
-                
-            # if processed_mask is not None:
-            #     edges = self.detect_edges(processed_mask)
-            #     window_title = f"Slice {info['index']:02d}: {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
-            #     cv.imshow(window_title, edges)
+        # if processed_mask is not None:
+        #     edges = self.detect_edges(processed_mask)
+        #     lines = self.find_horizontal_lines(edges)
+        #     window_title = f"Slice {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
+        #     self.display_horizontal_lines(edges, lines, window_title)
 
-            if processed_mask is not None:
-                edges = self.detect_edges(processed_mask)
-                lines = self.find_horizontal_lines(edges)
-                window_title = f"Slice {info['index']:02d}: {info['near_mm']:.0f}-{info['far_mm']:.0f}mm"
-                self.display_horizontal_lines(edges, lines, window_title)
+        if processed_mask is not None:
+            window_title = f"Slice {info['near_mm']:.0f}-{info['far_mm']:.0f}mm z={info['min_z_mm']:.0f}-{info['max_z_mm']:.0f}mm"
+            cv.imshow(window_title, processed_mask)
 
         cv.waitKey(1)
 
@@ -748,6 +784,110 @@ class DishwasherPerceptionROS(Node):
                 output[labels == label] = 255
 
         return output
+
+    def create_single_depth_slice_mask(self, near_m, far_m, min_z_m=0.10, max_z_m = 0.2, scale_to_color=True):
+        """
+        Create a single binary mask for pixels whose back-projected base_link X
+        coordinate falls within [near_m, far_m], ignoring pixels with camera-space
+        Z (depth) below min_z_m.
+
+        Args:
+            near_m        : Near edge of the slice in base_link X, metres
+            far_m         : Far  edge of the slice in base_link X, metres
+            min_z_m       : Minimum camera-space depth to accept (default 0.10 m)
+            scale_to_color: If True, resize the mask to the colour-image resolution
+
+        Returns:
+            mask       : np.ndarray (uint8) — 255 in-slice, 0 elsewhere
+                        or None if depth/camera_info is unavailable
+            info       : dict with keys
+                        'near_mm'    – slice start in mm (base_link X)
+                        'far_mm'     – slice end   in mm (base_link X)
+                        'num_pixels' – non-zero pixels in the mask
+        """
+        if self.depth_image is None:
+            self.get_logger().warn('create_depth_slice_mask: No depth image available')
+            return None, {}
+
+        if self.camera_info is None:
+            self.get_logger().warn('create_depth_slice_mask: No camera info available')
+            return None, {}
+
+        # ── 1. Back-project valid depth pixels into camera space ─────────────────
+        fx, fy = self.camera_info.k[0], self.camera_info.k[4]
+        cx, cy = self.camera_info.k[2], self.camera_info.k[5]
+
+        depth   = self.depth_image.astype(np.float64)
+        depth_m = depth / 1000.0
+
+        # Reject pixels with no reading or below the minimum Z threshold
+        #valid = (depth > 0) & (depth_m >= min_z_m)
+        #valid = (depth_m >= min_z_m)
+        valid = (depth_m >= min_z_m) & (depth_m <= 10.0)
+
+        h, w       = depth.shape
+        u_grid, v_grid = np.meshgrid(np.arange(w), np.arange(h))
+
+        z      = depth_m[valid]
+        x_cam  = (u_grid[valid] - cx) * z / fx
+        y_cam  = (v_grid[valid] - cy) * z / fy
+        pts_cam = np.stack([x_cam, y_cam, z], axis=1)   # (N, 3)
+
+        # ── 2. Transform to base_link (TARGET_FRAME_ID) ───────────────────────────
+        pts_working = pts_cam.copy()
+
+        if self.depth_frame_id is not None:
+            mat = self._get_transform_matrix(self.depth_frame_id, TARGET_FRAME_ID)
+            if mat is not None:
+                R, t = mat[:3, :3], mat[:3, 3]
+                pts_working = (R @ pts_cam.T).T + t
+            else:
+                self.get_logger().warn(
+                    'create_depth_slice_mask: TF unavailable, falling back to camera frame',
+                    throttle_duration_sec=5.0,
+                )
+
+        # ── 3. Build the mask ─────────────────────────────────────────────────────
+        # near_mm = near_m * 1000.0
+        # far_mm  = far_m  * 1000.0
+        # x_coords_mm   = pts_working[:, 0] * 1000.0
+        # valid_indices = np.argwhere(valid)              # (N, 2) — (row, col) pairs
+
+        near_mm = near_m * 1000.0
+        far_mm  = far_m  * 1000.0
+        valid_z       = (pts_working[:, 2] >= min_z_m) & (pts_working[:, 2] <= max_z_m)
+        x_coords_mm   = pts_working[valid_z, 0] * 1000.0
+        valid_indices = np.argwhere(valid)[valid_z]
+
+        in_slice      = (x_coords_mm >= near_mm) & (x_coords_mm <= far_mm)
+        slice_indices = valid_indices[in_slice]
+
+        mask = np.zeros((h, w), dtype=np.uint8)
+        if slice_indices.shape[0] > 0:
+            mask[slice_indices[:, 0], slice_indices[:, 1]] = 255
+
+        num_pixels = int(slice_indices.shape[0])
+
+        if scale_to_color and self.color_width is not None and self.color_height is not None:
+            mask = cv.resize(
+                mask,
+                (self.color_width, self.color_height),
+                interpolation=cv.INTER_NEAREST,
+            )
+
+        self.get_logger().debug(
+            f'create_depth_slice_mask: [{near_mm:.0f}, {far_mm:.0f}] mm (base_link X), '
+            f'min_z={min_z_m*1000:.0f} mm → {num_pixels} px'
+        )
+
+        info = {
+            'near_mm':    near_mm,
+            'far_mm':     far_mm,
+            'num_pixels': num_pixels,
+            'min_z_mm':   min_z_m * 1000.0,
+            'max_z_mm':   max_z_m * 1000.0,
+        }
+        return mask, info
 
     def create_depth_slice_masks1(self, start_m, end_m, discrete_size_m, scale_to_color=True):
         """
