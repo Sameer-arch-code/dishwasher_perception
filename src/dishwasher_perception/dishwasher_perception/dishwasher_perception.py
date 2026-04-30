@@ -21,6 +21,7 @@ import tf2_geometry_msgs
 
 from yolo_msgs.msg import DetectionArray
 from std_srvs.srv import Trigger
+from dishwasher_perception_interfaces.srv import GetPose
 
 
 # Constants
@@ -52,6 +53,7 @@ class DishwasherPerceptionROS(Node):
             'is_dishwasher_open',
             self.trigger_callback
         )
+        self.srv_pose = self.create_service(GetPose, 'getPose', self.get_pose_callback)
 
         # ROS setup
         main_timer_cb_group = MutuallyExclusiveCallbackGroup()
@@ -136,6 +138,117 @@ class DishwasherPerceptionROS(Node):
         cv.resizeWindow(FILTERED_DEPTH_WINDOW, 848, 480)
 
         self.get_logger().info('DishwasherPerceptionROS Node initialized')
+    
+
+    def get_pose_callback(self, request, response):
+        self.get_logger().info('Pose request received!')
+
+        # Wait up to 5 seconds for a valid pose
+        timeout = 5.0
+        start_time = self.get_clock().now()
+
+        while True:
+            pose = self.get_current_pose()
+            if pose is not None:
+                break
+            if (self.get_clock().now() - start_time).nanoseconds / 1e9 > timeout:
+                self.get_logger().warn('Timeout waiting for pose data')
+                response.success = False
+                response.message = 'Timeout: failed to retrieve pose, the door could be closed, if its open, we are cooked!!'
+                response.pose = Pose()
+                return response
+
+        try:
+            response.pose = pose
+            response.success = True
+            response.message = 'Pose retrieved successfully'
+
+        except Exception as e:
+            self.get_logger().error(f'Failed to get pose: {str(e)}')
+            response.pose = Pose()
+            response.success = False
+            response.message = f'Exception: {str(e)}'
+
+        return response
+
+    
+
+    def get_current_pose(self):
+        """Fetch the current pose from your robot/system"""
+        pose = Pose()
+        
+        
+        
+        # Orientation (quaternion: x, y, z, w)
+        pose.orientation.x = 0.0
+        pose.orientation.y = 0.0
+        pose.orientation.z = 0.0
+        pose.orientation.w = 1.0  # Identity quaternion (no rotation)
+
+        if self.current_frame is None :
+            return None
+
+        mask, info = self.create_single_depth_slice_mask(
+            near_m=0.85,
+            far_m=0.9,
+            min_z_m=0.07,
+            max_z_m = 0.2,
+            scale_to_color=True,
+        )
+
+        if mask is None or info['num_pixels'] == 0:
+            self.get_logger().error ('door is closed!')
+            return None
+
+        if mask is not None:
+        
+
+            left, right = self.find_leftright_pixels(mask)
+
+            if left is not None:
+
+                left_pose  = self.estimate_pose(left[0],  left[1])
+                right_pose = self.estimate_pose(right[0], right[1])
+
+                filtered = self.create_filtered_depth_image(min_y_m = right_pose.position.y + DISHWASHER_THICKNESS, max_y_m = left_pose.position.y - DISHWASHER_THICKNESS)
+                if filtered is not None:
+        
+                    mask, num_pixels = self.create_depth_mask_from_min(filtered, max_depth_mm=50)
+                    
+                    #processed_mask = self.process_mask(mask)
+                    processed_mask = mask
+                    if mask is not None:
+                        center_x = mask.shape[1] // 2
+                        
+                        
+                        # Find first white pixel (starting from top)
+                        first_white_y = None
+                        for y in range(mask.shape[0]):
+                            if mask[y, center_x] != 0:
+                                first_white_y = y
+                                break
+                        
+                        # Find first black pixel after white region
+                        first_black_y = None
+                        if first_white_y is not None:
+                            for y in range(first_white_y, mask.shape[0]):
+                                if mask[y, center_x] == 0:
+                                    first_black_y = y
+                                    break
+
+                        # Calculate y_to_consider as midpoint between white and black
+                        if first_white_y is not None and first_black_y is not None:
+                            y_to_consider = (first_white_y + first_black_y) // 2
+                            final_pose = self.estimate_pose(center_x, y_to_consider)
+                            # Position (x, y, z)
+                            pose.position.x = final_pose.position.x
+                            pose.position.y = final_pose.position.y
+                            pose.position.z = final_pose.position.z
+            else:
+                return None               
+    
+        
+        return pose
 
     def trigger_callback(self, request, response):
         self.get_logger().info('Trigger received!')
