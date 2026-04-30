@@ -41,10 +41,17 @@ DISHWASHER_THICKNESS = 0.15
 
 
 class DishwasherPerceptionROS(Node):
-    """ROS interface for chairs around table detection"""
+    """ROS interface for dishwasher's rack's pose detection"""
 
     def __init__(self):
-        super().__init__('is_door_open')
+        super().__init__('dishwasher_pose_detection')
+
+        #service stuff
+        self.srv = self.create_service(
+            Trigger,
+            'is_dishwasher_open',
+            self.trigger_callback
+        )
 
         # ROS setup
         main_timer_cb_group = MutuallyExclusiveCallbackGroup()
@@ -129,6 +136,43 @@ class DishwasherPerceptionROS(Node):
         cv.resizeWindow(FILTERED_DEPTH_WINDOW, 848, 480)
 
         self.get_logger().info('DishwasherPerceptionROS Node initialized')
+
+    def trigger_callback(self, request, response):
+        self.get_logger().info('Trigger received!')
+        
+        try:
+            # Your action here
+            if self.is_door_open():
+
+                response.success = True
+                response.message = 'Door is open'
+
+            else:
+                response.success = False
+                response.message = 'Door is closed'
+
+        except Exception as e:
+            response.success = False
+            response.message = f'Task failed: {str(e)}'
+        
+        return response
+
+    def is_door_open(self):
+        print("Executing triggered service...")
+
+        mask, info = self.create_single_depth_slice_mask(
+            near_m=0.85,
+            far_m=0.9,
+            min_z_m=0.07,
+            max_z_m = 0.2,
+            scale_to_color=True,
+        )
+
+        if mask is None or info['num_pixels'] == 0:
+            self.get_logger().error ('door is closed!')
+            return False
+        else:
+            return True
 
 
     def setup_depth_click_viewer(self):
