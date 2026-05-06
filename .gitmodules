@@ -1,0 +1,3 @@
+[submodule "src/dishwasher_perception_interfaces"]
+	path = src/dishwasher_perception_interfaces
+	url = git@gitlab.rwu.de:prj-iki-ros2/playground/dishwasher_perception_interfaces.git
