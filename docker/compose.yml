@@ -1,7 +1,7 @@
 services:
   dishwasher_perception:
     container_name: dishwasher_perception
-    image: fbe-dockerreg.rwu.de/prj-iki-ros2/robots/tiago/iki_tiago_base:iki_tiago_core
+    image: fbe-dockerreg.rwu.de/prj-iki-ros2/perception/yolo:jazzy
     environment:
       DISPLAY: $DISPLAY
       ROS_DOMAIN_ID: $ROS_DOMAIN_ID
@@ -16,6 +16,6 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - $HOME/.Xauthority:/root/.Xauthority
-      # - $ROS_BAGS:/root/rosbags
+      - $ROS_BAGS:/root/rosbags/
       - ../src/:/root/ros2_ws/src
     command: tail -f /dev/null    
