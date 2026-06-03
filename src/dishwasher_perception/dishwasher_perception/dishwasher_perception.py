@@ -7,8 +7,13 @@ from copy import deepcopy
 from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, CameraInfo
+from sensor_msgs.msg import PointCloud2
+import sensor_msgs_py.point_cloud2 as pc2
 from geometry_msgs.msg import Pose, PoseStamped, TransformStamped
 import cv2 as cv
+from rclpy.qos import qos_profile_sensor_data
+from std_msgs.msg import Header
+
 
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -38,7 +43,20 @@ FILTERED_DEPTH_WINDOW = "Filtered Depth"
 
 MASK_WINDOW = "rack Mask"
 
+#create_single_depth_slice_mask CONSTANTS
+
+NEAR_M = 0.3
+FAR_M = 0.65
+MIN_Z_M = 0.07
+MAX_Z_M = 0.2
+
+#create_filtered_depth_image CONSTANT
+
 DISHWASHER_THICKNESS = 0.15
+
+#create_depth_mask_from_min CONSTANTS
+
+MAX_DEPTH_MM = 50
 
 
 class DishwasherPerceptionROS(Node):
@@ -54,6 +72,8 @@ class DishwasherPerceptionROS(Node):
             self.trigger_callback
         )
         self.srv_pose = self.create_service(GetPose, 'getPose', self.get_pose_callback)
+
+        self.ultimate_pose = None
 
         # ROS setup
         main_timer_cb_group = MutuallyExclusiveCallbackGroup()
@@ -96,6 +116,11 @@ class DishwasherPerceptionROS(Node):
 
         self.ran = False
 
+        self.publish_cropped_pc = False
+
+
+        self.dx, self.dy, self.dz = 0.2, 0.2, 0.2
+
         # QoS profile
         qos = QoSProfile(depth=5, reliability=QoSReliabilityPolicy.BEST_EFFORT)
 
@@ -120,6 +145,14 @@ class DishwasherPerceptionROS(Node):
             10
         )
 
+        self.sub = self.create_subscription(
+            PointCloud2,
+            '/femto_mega/depth_registered/points',
+            self.point_cloud_cb,
+            qos_profile_sensor_data
+        )
+        self.pub = self.create_publisher(PointCloud2, '/cropped_cloud', 10)
+
         # Timer — comment out during deployment
         self.timer = self.create_timer(
             0.1,
@@ -138,6 +171,46 @@ class DishwasherPerceptionROS(Node):
         cv.resizeWindow(FILTERED_DEPTH_WINDOW, 848, 480)
 
         self.get_logger().info('DishwasherPerceptionROS Node initialized')
+
+    def point_cloud_cb(self, msg):
+        self.get_logger().info('point cloud sub works')
+        if not self.publish_cropped_pc:
+            self.get_logger().info('cropped cloud calc not begins')
+            return
+
+        self.get_logger().info('cropped cloud calc begins')
+
+
+        cloud_frame = msg.header.frame_id   # femto_mega_color_optical_frame
+
+        pose = self.transform_pose(self.ultimate_pose, TARGET_FRAME_ID, cloud_frame)
+
+        cx = pose.position.x
+        cy = pose.position.y
+        cz = pose.position.z
+
+        # --- Read points and filter ---
+        pts = np.array([
+            (p[0], p[1], p[2])
+            for p in pc2.read_points(msg, field_names=('x','y','z'), skip_nans=True)
+        ])
+        if pts.size == 0:
+            return
+
+        mask = (
+            (pts[:, 0] >= cx - self.dx) & (pts[:, 0] <= cx + self.dx) &
+            (pts[:, 1] >= cy - self.dy) & (pts[:, 1] <= cy + self.dy) &
+            (pts[:, 2] >= cz - self.dz) & (pts[:, 2] <= cz + self.dz)
+        )
+        filtered = pts[mask]
+        if len(filtered) == 0:
+            return
+
+        stamp = msg.header.stamp 
+        h = Header()
+        h.stamp    = stamp
+        h.frame_id = cloud_frame
+        self.pub.publish(pc2.create_cloud_xyz32(h, filtered.tolist()))
     
 
     def get_pose_callback(self, request, response):
@@ -162,6 +235,8 @@ class DishwasherPerceptionROS(Node):
             response.pose = pose
             response.success = True
             response.message = 'Pose retrieved successfully'
+            #if pose.position.x != 0.0 and pose.position.y != 0.0 and pose.position.z != 0.0:
+            self.publish_cropped_pc = True
 
         except Exception as e:
             self.get_logger().error(f'Failed to get pose: {str(e)}')
@@ -189,10 +264,10 @@ class DishwasherPerceptionROS(Node):
             return None
 
         mask, info = self.create_single_depth_slice_mask(
-            near_m=0.85,
-            far_m=0.9,
-            min_z_m=0.07,
-            max_z_m = 0.2,
+            near_m=NEAR_M,
+            far_m=FAR_M,
+            min_z_m=MIN_Z_M,
+            max_z_m =MAX_Z_M,
             scale_to_color=True,
         )
 
@@ -213,7 +288,7 @@ class DishwasherPerceptionROS(Node):
                 filtered = self.create_filtered_depth_image(min_y_m = right_pose.position.y + DISHWASHER_THICKNESS, max_y_m = left_pose.position.y - DISHWASHER_THICKNESS)
                 if filtered is not None:
         
-                    mask, num_pixels = self.create_depth_mask_from_min(filtered, max_depth_mm=50)
+                    mask, num_pixels = self.create_depth_mask_from_min(filtered, max_depth_mm=MAX_DEPTH_MM)
                     
                     #processed_mask = self.process_mask(mask)
                     processed_mask = mask
@@ -244,6 +319,8 @@ class DishwasherPerceptionROS(Node):
                             pose.position.x = final_pose.position.x
                             pose.position.y = final_pose.position.y
                             pose.position.z = final_pose.position.z
+
+                            self.ultimate_pose = pose
             else:
                 return None               
     
@@ -274,10 +351,10 @@ class DishwasherPerceptionROS(Node):
         print("Executing triggered service...")
 
         mask, info = self.create_single_depth_slice_mask(
-            near_m=0.85,
-            far_m=0.9,
-            min_z_m=0.07,
-            max_z_m = 0.2,
+            near_m=NEAR_M,
+            far_m=FAR_M,
+            min_z_m=MIN_Z_M,
+            max_z_m =MAX_Z_M,
             scale_to_color=True,
         )
 
@@ -730,10 +807,10 @@ class DishwasherPerceptionROS(Node):
         self.update_depth_click_viewer()
 
         mask, info = self.create_single_depth_slice_mask(
-            near_m=0.85,
-            far_m=0.9,
-            min_z_m=0.07,
-            max_z_m = 0.2,
+            near_m=NEAR_M,
+            far_m=FAR_M,
+            min_z_m=MIN_Z_M,
+            max_z_m = MAX_Z_M,
             scale_to_color=True,
         )
 
@@ -741,10 +818,10 @@ class DishwasherPerceptionROS(Node):
             self.get_logger().error ('door is closed!')
             return
 
-        self.get_logger().info(
-            f"Slice [{info['near_mm']:.0f}, {info['far_mm']:.0f}] mm "
-            f"→ {info['num_pixels']} px"
-        )
+        # self.get_logger().info(
+        #     f"Slice [{info['near_mm']:.0f}, {info['far_mm']:.0f}] mm "
+        #     f"→ {info['num_pixels']} px"
+        # )
 
 
         #processed_mask = self.process_mask(mask)
@@ -783,7 +860,7 @@ class DishwasherPerceptionROS(Node):
                     display = cv.applyColorMap(display, cv.COLORMAP_JET)
                     cv.imshow(FILTERED_DEPTH_WINDOW, display)
 
-                    mask, num_pixels = self.create_depth_mask_from_min(filtered, max_depth_mm=50)
+                    mask, num_pixels = self.create_depth_mask_from_min(filtered, max_depth_mm=MAX_DEPTH_MM)
                     
                     #processed_mask = self.process_mask(mask)
                     processed_mask = mask
@@ -812,10 +889,10 @@ class DishwasherPerceptionROS(Node):
                         if first_white_y is not None and first_black_y is not None:
                             y_to_consider = (first_white_y + first_black_y) // 2
                             cv.circle(mask, (center_x, y_to_consider), 3, (0, 255, 0), -1)
-                            print(f"Pixel to be considered : ({center_x}, {y_to_consider})")
+                            #print(f"Pixel to be considered : ({center_x}, {y_to_consider})")
 
                             final_pose = self.estimate_pose(center_x, y_to_consider)
-                            print(f"Final pose - X: {final_pose.position.x}, Y: {final_pose.position.y}, Z: {final_pose.position.z}")
+                            #print(f"Final pose - X: {final_pose.position.x}, Y: {final_pose.position.y}, Z: {final_pose.position.z}")
                             
                             # Display pose on image
                             text = f"Pose: ({final_pose.position.x:.2f}, {final_pose.position.y:.2f}, {final_pose.position.z:.2f})"
@@ -938,10 +1015,10 @@ class DishwasherPerceptionROS(Node):
                 interpolation=cv.INTER_NEAREST,
             )
 
-        self.get_logger().info(
-            f'create_depth_mask_from_min: base_link X range [{min_x_mm:.0f}, {max_x_mm:.0f}] mm '
-            f'→ {num_pixels} px'
-        )
+        # self.get_logger().info(
+        #     f'create_depth_mask_from_min: base_link X range [{min_x_mm:.0f}, {max_x_mm:.0f}] mm '
+        #     f'→ {num_pixels} px'
+        # )
 
         info = {
             'min_x_mm':   min_x_mm,
@@ -1131,37 +1208,6 @@ class DishwasherPerceptionROS(Node):
             )
             return None
 
-    # ── modified mask function ────────────────────────────────────────────────
-
-    
-
-    def remove_big_regions(self, mask_img, max_pixels=500):
-        """
-        Remove all connected white regions bigger than max_pixels.
-        """
-        num_labels, labels, stats, _ = cv.connectedComponentsWithStats(mask_img, connectivity=8)
-
-        output = np.zeros_like(mask_img)
-        for label in range(1, num_labels):  # skip 0 — that's the background
-            area = stats[label, cv.CC_STAT_AREA]
-            if area <= max_pixels:
-                output[labels == label] = 255
-
-        return output
-
-    def remove_small_regions(self, mask_img, min_pixels=500):
-        """
-        Remove all connected white regions smaller than min_pixels.
-        """
-        num_labels, labels, stats, _ = cv.connectedComponentsWithStats(mask_img, connectivity=8)
-
-        output = np.zeros_like(mask_img)
-        for label in range(1, num_labels):  # skip 0 — that's the background
-            area = stats[label, cv.CC_STAT_AREA]
-            if area >= min_pixels:
-                output[labels == label] = 255
-
-        return output
 
     def create_single_depth_slice_mask(self, near_m, far_m, min_z_m=0.10, max_z_m = 0.2, scale_to_color=True):
         """
@@ -1267,364 +1313,7 @@ class DishwasherPerceptionROS(Node):
         }
         return mask, info
 
-    def create_depth_slice_masks1(self, start_m, end_m, discrete_size_m, scale_to_color=True):
-        """
-        Create a list of binary masks, each covering a discrete slice along the
-        X-axis of TARGET_FRAME_ID (base_link), rather than raw camera depth.
 
-        The range [start_m, end_m] is divided into equal-width windows of
-        discrete_size_m along base_link X.  Each window produces one mask where
-        pixels whose back-projected X coordinate falls within that window are set
-        to 255, everything else to 0.
-
-        Args:
-            start_m        : Near edge of the zone of interest in base_link X, metres
-            end_m          : Far  edge of the zone of interest in base_link X, metres
-            discrete_size_m: Width of each slice in metres
-            scale_to_color : If True, resize every mask to the colour-image resolution
-
-        Returns:
-            masks      : list of np.ndarray (uint8), one per slice
-            slice_info : list of dicts with keys
-                        'index'      – 0-based slice index
-                        'near_mm'    – slice start in mm (base_link X)
-                        'far_mm'     – slice end   in mm (base_link X)
-                        'num_pixels' – non-zero pixels in this mask
-        """
-        if self.depth_image is None:
-            self.get_logger().warn('create_depth_slice_masks: No depth image available')
-            return [], []
-
-        if self.camera_info is None:
-            self.get_logger().warn('create_depth_slice_masks: No camera info available')
-            return [], []
-
-        # ── 1. Back-project every valid depth pixel into camera space ────────────
-        fx, fy = self.camera_info.k[0], self.camera_info.k[4]
-        cx, cy = self.camera_info.k[2], self.camera_info.k[5]
-
-        depth = self.depth_image.astype(np.float64)
-        valid = depth > 0
-        depth_m = np.where(valid, depth / 1000.0, 0.0)
-
-        h, w = depth.shape
-        u_grid, v_grid = np.meshgrid(np.arange(w), np.arange(h))
-
-        z      = depth_m[valid]
-        x_cam  = (u_grid[valid] - cx) * z / fx
-        y_cam  = (v_grid[valid] - cy) * z / fy
-        pts_cam = np.stack([x_cam, y_cam, z], axis=1)          # (N, 3)
-
-        # ── 2. Transform to base_link (TARGET_FRAME_ID) ───────────────────────────
-        pts_working = pts_cam.copy()
-
-        if self.depth_frame_id is not None:
-            mat = self._get_transform_matrix(self.depth_frame_id, TARGET_FRAME_ID)
-            if mat is not None:
-                R, t = mat[:3, :3], mat[:3, 3]
-                pts_working = (R @ pts_cam.T).T + t
-            else:
-                self.get_logger().warn(
-                    'create_depth_slice_masks: TF unavailable, falling back to camera frame',
-                    throttle_duration_sec=5.0,
-                )
-
-        # x_coords_world holds the base_link X for every valid pixel
-        x_coords_world = pts_working[:, 0]          # shape (N,)
-        valid_indices  = np.argwhere(valid)          # shape (N, 2) — (row, col) pairs
-
-        # ── 3. Build one mask per slice ───────────────────────────────────────────
-        start_mm         = start_m         * 1000.0
-        end_mm           = end_m           * 1000.0
-        discrete_size_mm = discrete_size_m * 1000.0
-        x_coords_mm      = x_coords_world  * 1000.0  # convert once for comparisons
-
-        num_slices = int(math.ceil((end_mm - start_mm) / discrete_size_mm))
-
-        self.get_logger().info(
-            f'create_depth_slice_masks (base_link X): '
-            f'{start_mm:.0f}–{end_mm:.0f} mm, '
-            f'slice={discrete_size_mm:.0f} mm → {num_slices} masks'
-        )
-
-        masks      = []
-        slice_info = []
-
-        for i in range(num_slices):
-            near_mm = start_mm + i * discrete_size_mm
-            far_mm  = min(near_mm + discrete_size_mm, end_mm)
-
-            # Select points whose base_link X falls in this window
-            in_slice = (x_coords_mm >= near_mm) & (x_coords_mm <= far_mm)
-            slice_indices = valid_indices[in_slice]   # (M, 2) — (row, col) in depth image
-
-            # Paint selected pixels into a depth-resolution mask
-            mask = np.zeros((h, w), dtype=np.uint8)
-            if slice_indices.shape[0] > 0:
-                mask[slice_indices[:, 0], slice_indices[:, 1]] = 255
-
-            num_pixels = int(slice_indices.shape[0])
-
-            if scale_to_color and self.color_width is not None and self.color_height is not None:
-                mask = cv.resize(
-                    mask,
-                    (self.color_width, self.color_height),
-                    interpolation=cv.INTER_NEAREST,
-                )
-
-            masks.append(mask)
-            slice_info.append({
-                'index':      i,
-                'near_mm':    near_mm,
-                'far_mm':     far_mm,
-                'num_pixels': num_pixels,
-            })
-
-            self.get_logger().debug(
-                f'  slice {i:3d}: [{near_mm:.0f}, {far_mm:.0f}] mm (base_link X) '
-                f'→ {num_pixels} px'
-            )
-
-        return masks, slice_info
-
-    def create_depth_slice_masks(self, start_m, end_m, discrete_size_m, scale_to_color=True):
-        """
-        Create a list of binary masks, each covering a discrete depth slice
-        from start_m to end_m.
-
-        The range [start_m, end_m] is divided into equal-width windows of
-        discrete_size_m.  Each window produces one mask where pixels whose
-        depth falls within that window are set to 255, everything else to 0.
-        The last slice is clipped to end_m even if the window would overshoot.
-
-        Args:
-            start_m        : Near edge of the zone of interest, in metres (e.g. 0.85)
-            end_m          : Far  edge of the zone of interest, in metres (e.g. 1.15)
-            discrete_size_m: Width of each slice in metres           (e.g. 0.10)
-            scale_to_color : If True, resize every mask to the colour-image resolution
-
-        Returns:
-            masks      : list of np.ndarray (uint8), one per slice
-            slice_info : list of dicts, each with keys
-                        'index'         – 0-based slice index
-                        'near_mm'       – slice start in mm
-                        'far_mm'        – slice end   in mm
-                        'num_pixels'    – non-zero pixels in this mask
-
-        Example:
-            masks, info = self.create_depth_slice_masks(
-                start_m=0.85, end_m=1.15, discrete_size_m=0.10
-            )
-            # Produces 3 masks covering [850,950), [950,1050), [1050,1150] mm
-        """
-        if self.depth_image is None:
-            self.get_logger().warn('create_depth_slice_masks: No depth image available')
-            return [], []
-
-        # Convert to millimetres for direct comparison with the depth image
-        start_mm        = start_m        * 1000.0
-        end_mm          = end_m          * 1000.0
-        discrete_size_mm = discrete_size_m * 1000.0
-
-        num_slices = int(math.ceil((end_mm - start_mm) / discrete_size_mm))
-
-        self.get_logger().info(
-            f'create_depth_slice_masks: {start_mm:.0f}–{end_mm:.0f} mm, '
-            f'slice={discrete_size_mm:.0f} mm → {num_slices} masks'
-        )
-
-        masks      = []
-        slice_info = []
-
-        for i in range(num_slices):
-            near_mm = start_mm + i * discrete_size_mm
-            far_mm  = min(near_mm + discrete_size_mm, end_mm)  # clip last slice
-
-            valid_mask = (
-                (self.depth_image > 0) &
-                (self.depth_image >= near_mm) &
-                (self.depth_image <= far_mm)
-            )
-
-            mask = np.zeros(self.depth_image.shape, dtype=np.uint8)
-            mask[valid_mask] = 255
-
-            num_pixels = int(np.count_nonzero(valid_mask))
-
-            if scale_to_color and self.color_width is not None and self.color_height is not None:
-                mask = cv.resize(
-                    mask,
-                    (self.color_width, self.color_height),
-                    interpolation=cv.INTER_NEAREST
-                )
-
-            masks.append(mask)
-            slice_info.append({
-                'index':      i,
-                'near_mm':    near_mm,
-                'far_mm':     far_mm,
-                'num_pixels': num_pixels,
-            })
-
-            self.get_logger().debug(
-                f'  slice {i:3d}: [{near_mm:.0f}, {far_mm:.0f}] mm  '
-                f'→ {num_pixels} px'
-            )
-
-        return masks, slice_info
-
-    def depth_buckets(self, scale_to_color=True, bucket_offset=0):
-        if self.depth_image is None or self.camera_info is None:
-            self.get_logger().warn('depth_buckets: missing data')
-            return
-
-        if self.current_frame is None:
-            self.get_logger().warn('depth_buckets: no color frame yet')
-            return
-
-        # -- 1. Back-projection --
-        fx, fy = self.camera_info.k[0], self.camera_info.k[4]
-        cx, cy = self.camera_info.k[2], self.camera_info.k[5]
-
-        depth = self.depth_image.astype(np.float64)
-        valid = depth > 0
-        depth_m = np.where(valid, depth / 1000.0, 0.0)
-
-        h, w = depth.shape
-        u_grid, v_grid = np.meshgrid(np.arange(w), np.arange(h))
-
-        z = depth_m[valid]
-        x_cam = (u_grid[valid] - cx) * z / fx
-        y_cam = (v_grid[valid] - cy) * z / fy
-        pts_cam = np.stack([x_cam, y_cam, z], axis=1)
-
-        # -- 2. Transform --
-        pts_working = pts_cam
-
-        if self.depth_frame_id is not None:
-            mat = self._get_transform_matrix(self.depth_frame_id, TARGET_FRAME_ID)
-            if mat is not None:
-                R, t = mat[:3, :3], mat[:3, 3]
-                pts_working = (R @ pts_cam.T).T + t
-
-        if pts_working.shape[0] == 0:
-            return
-
-        # -- 3. Bucket logic --
-        # x_coords = pts_working[:, 0]
-        # valid_pixel_indices = np.argwhere(valid)  # shape (N, 2): each row is (row, col) in depth image
-        # bucket_xs = np.unique(np.round(x_coords, decimals=3))
-
-        # buckets = []
-        # for bx in bucket_xs:
-        #     mask = np.abs(x_coords - bx) < 0.0005
-        #     pts_in_bucket = pts_working[mask]
-        #     pixel_indices = valid_pixel_indices[mask]  # (row, col) pairs for these points
-        #     buckets.append((bx, pts_in_bucket, pixel_indices))
-        #     #print(f"Bucket x={bx:.4f}: {len(pts_in_bucket)} points")
-
-        #     #for pt in pts_in_bucket:
-        #         #print(f"  {pt}")
-
-
-        # print(f"Total buckets: {len(buckets)}")
-
-        # -- 3. Bucket logic --
-        x_coords = pts_working[:, 0]
-
-        # 1. Create a mask for the specific X range
-        range_mask = (x_coords >= 0.8) & (x_coords <= 1.2)
-
-        # 2. Apply that mask to all relevant arrays
-        pts_filtered = pts_working[range_mask]
-        valid_indices_filtered = np.argwhere(valid)[range_mask]
-        x_coords_filtered = x_coords[range_mask]
-
-        # 3. Now find unique buckets only within that filtered set
-        bucket_xs = np.unique(np.round(x_coords_filtered, decimals=3))
-
-        buckets = []
-        for bx in bucket_xs:
-            # Use the filtered arrays here for better performance
-            mask = np.abs(x_coords_filtered - bx) < 0.0005
-            pts_in_bucket = pts_filtered[mask]
-            pixel_indices = valid_indices_filtered[mask]
-            
-            buckets.append((bx, pts_in_bucket, pixel_indices))
-
-        print(f"Total buckets in range [0.8, 1.2]: {len(buckets)}")
-
-        # # -- 4. Top 10 buckets by size --
-        # buckets.sort(key=lambda b: len(b[1]), reverse=True)
-        # top10 = buckets[bucket_offset:bucket_offset + 10]
-
-        # # Distinct BGR colors for up to 10 buckets
-        # colors = [
-        #     (255,  64,  64),   # blue-ish
-        #     ( 64, 255,  64),   # green
-        #     ( 64,  64, 255),   # red
-        #     (255, 255,  64),   # cyan
-        #     ( 64, 255, 255),   # yellow
-        #     (255,  64, 255),   # magenta
-        #     (255, 165,   0),   # orange
-        #     (128,   0, 255),   # purple
-        #     (  0, 255, 165),   # mint
-        #     (255, 192, 128),   # peach
-        # ]
-
-        # # -- 5. Paint pixels on color image --
-        # display = self.current_frame.copy()
-
-        # # Scale depth pixel coords to color image space if needed
-        # scale_x = self.color_width  / w if self.color_width  else 1.0
-        # scale_y = self.color_height / h if self.color_height else 1.0
-
-        # for i, (bx, pts, pixel_indices) in enumerate(top10):
-        #     color = colors[i]
-        #     # pixel_indices are (row, col) in depth image space — scale to color image
-        #     rows = (pixel_indices[:, 0] * scale_y).astype(int)
-        #     cols = (pixel_indices[:, 1] * scale_x).astype(int)
-        #     # Clamp to display bounds
-        #     rows = np.clip(rows, 0, display.shape[0] - 1)
-        #     cols = np.clip(cols, 0, display.shape[1] - 1)
-        #     display[rows, cols] = color
-        #     print(f"Top bucket #{i+1}: x={bx:.4f}, {len(pts)} points, color={color}")
-
-        # cv.imshow("Depth Buckets", display)
-        # cv.waitKey(1)
-
-        # -- 4. Prepare for All Buckets --
-        # We don't sort by size anymore; let's keep them in X-order or just use all
-        num_buckets = len(buckets)
-        if num_buckets == 0:
-            cv.imshow("Depth Buckets", self.current_frame)
-            cv.waitKey(1)
-            return
-
-        display = self.current_frame.copy()
-        
-        # Scale factors for depth-to-color mapping
-        scale_x = self.color_width  / w if self.color_width  else 1.0
-        scale_y = self.color_height / h if self.color_height else 1.0
-
-        # -- 5. Paint Every Bucket --
-        for i, (bx, pts, pixel_indices) in enumerate(buckets):
-            # Generate a pseudo-random or sequential color based on the index
-            # This ensures each bucket gets a distinct color even if there are 100+
-            hue = int(180 * i / num_buckets) # OpenCV Hues go from 0-180
-            color_hsv = np.uint8([[[hue, 255, 255]]])
-            color_bgr = cv.cvtColor(color_hsv, cv.COLOR_HSV2BGR)[0][0]
-            # Convert to standard python tuple for OpenCV
-            color = tuple(int(c) for c in color_bgr)
-
-            # Map depth pixels to color image pixels
-            rows = np.clip((pixel_indices[:, 0] * scale_y).astype(int), 0, display.shape[0] - 1)
-            cols = np.clip((pixel_indices[:, 1] * scale_x).astype(int), 0, display.shape[1] - 1)
-            
-            display[rows, cols] = color
-
-        cv.imshow("Depth Buckets", display)
-        cv.waitKey(1)
 
 
 
