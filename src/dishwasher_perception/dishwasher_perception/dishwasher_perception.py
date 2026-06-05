@@ -14,6 +14,8 @@ import cv2 as cv
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import Header
 
+from visualization_msgs.msg import Marker
+
 
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -119,7 +121,14 @@ class DishwasherPerceptionROS(Node):
         self.publish_cropped_pc = False
 
 
-        self.dx, self.dy, self.dz = 0.2, 0.2, 0.2
+        self.left_dx  = 0.3
+        self.right_dx = 0.3
+
+        self.front_dy  = 0.0
+        self.back_dy = 0.6
+
+        self.down_dz  = 0.2
+        self.up_dz    = 0.0
 
         # QoS profile
         qos = QoSProfile(depth=5, reliability=QoSReliabilityPolicy.BEST_EFFORT)
@@ -152,27 +161,65 @@ class DishwasherPerceptionROS(Node):
             qos_profile_sensor_data
         )
         self.pub = self.create_publisher(PointCloud2, '/cropped_cloud', 10)
+        self.marker_pub = self.create_publisher(Marker, '/crop_box_marker', 10)
 
-        # Timer — comment out during deployment
-        self.timer = self.create_timer(
-            0.1,
-            self.mainTimer,
-            callback_group=main_timer_cb_group
-        )
+        self.declare_parameter('debug', False)
+        self.debug = self.get_parameter('debug').value
+
+        if self.debug:
+            self.timer = self.create_timer(0.1,self.mainTimer,callback_group=main_timer_cb_group)
+       
+
+        if self.debug:
+            self._init_debug_ui()
+
+        self.declare_parameter('cpc_param', False)
+        self.cpc_param = self.get_parameter('cpc_param').value
+
+        self.declare_parameter('markers', False)
+        self.markers = self.get_parameter('markers').value
+        self.publish_markers = False
+
+        self.get_logger().info('DishwasherPerceptionROS Node initialized')
+
+    
+    def _init_debug_ui(self):
+        cv.namedWindow(FILTERED_DEPTH_WINDOW, cv.WINDOW_NORMAL)
+        cv.resizeWindow(FILTERED_DEPTH_WINDOW, 848, 480)
 
         # Set up the interactive depth viewer window
         self.setup_depth_click_viewer()
 
         # Set up click-to-depth on the main color window
-        self.setup_color_click_viewer()
+        #self.setup_color_click_viewer()
 
+    def publish_cpc_marker(self):
+        self.get_logger().info('publishing marker')
+        marker = Marker()
+        marker.header.frame_id = TARGET_FRAME_ID
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.type = Marker.CUBE
+        marker.action = Marker.ADD
+
+        marker.pose.position.x = self.ultimate_pose.position.x + (self.back_dy - self.front_dy) / 2
+        marker.pose.position.y = self.ultimate_pose.position.y + (self.left_dx - self.right_dx) / 2
+        marker.pose.position.z = self.ultimate_pose.position.z + (self.up_dz   - self.down_dz)  / 2
+        marker.pose.orientation.w = 1.0
+
+        marker.scale.x = self.front_dy + self.back_dy
+        marker.scale.y = self.right_dx + self.left_dx
+        marker.scale.z = self.down_dz  + self.up_dz
+
+        marker.color.r = 0.0
+        marker.color.g = 1.0
+        marker.color.b = 0.0
+        marker.color.a = 0.3  # semi-transparent
+
+        self.marker_pub.publish(marker)
         
-        cv.namedWindow(FILTERED_DEPTH_WINDOW, cv.WINDOW_NORMAL)
-        cv.resizeWindow(FILTERED_DEPTH_WINDOW, 848, 480)
-
-        self.get_logger().info('DishwasherPerceptionROS Node initialized')
-
     def point_cloud_cb(self, msg):
+        if self.publish_markers:
+            self.publish_cpc_marker()
         self.get_logger().info('point cloud sub works')
         if not self.publish_cropped_pc:
             self.get_logger().info('cropped cloud calc not begins')
@@ -180,16 +227,9 @@ class DishwasherPerceptionROS(Node):
 
         self.get_logger().info('cropped cloud calc begins')
 
+        cloud_frame = msg.header.frame_id
 
-        cloud_frame = msg.header.frame_id   # femto_mega_color_optical_frame
-
-        pose = self.transform_pose(self.ultimate_pose, TARGET_FRAME_ID, cloud_frame)
-
-        cx = pose.position.x
-        cy = pose.position.y
-        cz = pose.position.z
-
-        # --- Read points and filter ---
+        # --- Read points ---
         pts = np.array([
             (p[0], p[1], p[2])
             for p in pc2.read_points(msg, field_names=('x','y','z'), skip_nans=True)
@@ -197,19 +237,39 @@ class DishwasherPerceptionROS(Node):
         if pts.size == 0:
             return
 
+        # --- Transform all points into TARGET_FRAME_ID ---
+        mat = self._get_transform_matrix(cloud_frame, TARGET_FRAME_ID)
+        if mat is None:
+            self.get_logger().warn('point_cloud_cb: TF unavailable, skipping')
+            return
+
+        R, t = mat[:3, :3], mat[:3, 3]
+        pts_transformed = (R @ pts.T).T + t
+
+        # --- Filter around ultimate_pose (already in TARGET_FRAME_ID) ---
+        cx = self.ultimate_pose.position.x
+        cy = self.ultimate_pose.position.y
+        cz = self.ultimate_pose.position.z
+
         mask = (
-            (pts[:, 0] >= cx - self.dx) & (pts[:, 0] <= cx + self.dx) &
-            (pts[:, 1] >= cy - self.dy) & (pts[:, 1] <= cy + self.dy) &
-            (pts[:, 2] >= cz - self.dz) & (pts[:, 2] <= cz + self.dz)
+            (pts_transformed[:, 0] >= cx - self.front_dy)   &
+            (pts_transformed[:, 0] <= cx + self.back_dy)  &
+
+            (pts_transformed[:, 1] >= cy - self.right_dx)  &
+            (pts_transformed[:, 1] <= cy + self.left_dx)   &
+
+            (pts_transformed[:, 2] >= cz - self.down_dz)   &
+            (pts_transformed[:, 2] <= cz + self.up_dz)
         )
-        filtered = pts[mask]
+        filtered = pts_transformed[mask]
         if len(filtered) == 0:
             return
 
-        stamp = msg.header.stamp 
+        stamp = msg.header.stamp
         h = Header()
         h.stamp    = stamp
-        h.frame_id = cloud_frame
+        h.frame_id = TARGET_FRAME_ID  # points are now in base_link
+        self.publish_cpc_marker()
         self.pub.publish(pc2.create_cloud_xyz32(h, filtered.tolist()))
     
 
@@ -235,8 +295,12 @@ class DishwasherPerceptionROS(Node):
             response.pose = pose
             response.success = True
             response.message = 'Pose retrieved successfully'
-            #if pose.position.x != 0.0 and pose.position.y != 0.0 and pose.position.z != 0.0:
-            self.publish_cropped_pc = True
+            if pose.position.x != 0.0 or pose.position.y != 0.0 or pose.position.z != 0.0:
+                if self.cpc_param:
+
+                    self.publish_cropped_pc = True
+                if self.markers:
+                    self.publish_markers = True
 
         except Exception as e:
             self.get_logger().error(f'Failed to get pose: {str(e)}')
