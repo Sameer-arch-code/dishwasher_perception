@@ -1,0 +1,5 @@
+package: grasp_pose_detection
+plugin: GraspPoseDetectionNode
+remappings:
+  ~/input_cloud: /astra2/depth/points
+params: perception/grasp_pose_detection.yaml@/**.ros__parameters

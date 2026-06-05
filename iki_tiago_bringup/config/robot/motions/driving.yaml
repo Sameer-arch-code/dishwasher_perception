@@ -1,0 +1,58 @@
+key: driving
+name: Driving
+usage: demo
+description: "Go home than to driving position"
+
+joints:
+  - torso_lift_joint
+  - arm_1_joint
+  - arm_2_joint
+  - arm_3_joint
+  - arm_4_joint
+  - arm_5_joint
+  - arm_6_joint
+  - arm_7_joint
+
+# 4 waypoints × 8 joints = 32 values
+positions:
+  - 0.25
+  - 0.20
+  - 0.35
+  - -0.20
+  - 1.94
+  - -1.57
+  - 1.37
+  - -1.58
+
+  - 0.18
+  - 0.50
+  - -1.34
+  - -0.48
+  - 1.94
+  - -1.49
+  - 1.37
+  - -1.58
+
+  - 0.15
+  - 0.50
+  - -1.34
+  - -0.48
+  - 1.94
+  - -1.49
+  - 1.37
+  - 0.0
+
+  - 0.15
+  - 0.166
+  - -1.387
+  - -0.165
+  - 2.0
+  - -1.49
+  - 1.37
+  - 0.0
+
+times_from_start:
+  - 0.5
+  - 4.0
+  - 7.0
+  - 8.5

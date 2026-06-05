@@ -1,0 +1,30 @@
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      filters: ['keepout_filter']
+
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: True
+        filter_info_topic: "/bounds_manager/mask_info"
+        transform_tolerance: 0.5
+        override_lethal_cost: False
+
+      inflation_layer:
+        inflation_radius: 0.4
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      filters: ['keepout_filter']
+
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: True
+        filter_info_topic: "/bounds_manager/mask_info"
+        transform_tolerance: 0.5
+        override_lethal_cost: False
+
+      inflation_layer:
+        inflation_radius: 0.4
+

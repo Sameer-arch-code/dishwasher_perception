@@ -1,0 +1,433 @@
+/**:
+  ros__parameters:
+    motions:
+      inspect_surroundings:
+        joints: ['head_1_joint', 'head_2_joint']
+        positions: [-1., -0.85,
+                    -1., -0.85,
+                    1., -0.85,
+                    1., -0.85,
+                    0., -0.85]
+        times_from_start: [1.5, 2.0, 4.5, 5.0, 7.0]
+        meta:
+          name: Inspect Surroundings
+          usage: demo
+          description: 'Inspect surroundings around the robot'
+
+      head_tour:
+        joints: [head_1_joint, head_2_joint]
+        positions: [0.0, 0.0,
+                    0.7, 0.4,
+                    0.7,-0.4,
+                   -0.7,-0.4,
+                   -0.7, 0.4,
+                    0.0, 0.0]
+        times_from_start: [0.1, 3.0, 6.0, 9.0, 12.0, 15.0]
+        meta:
+          name: Head Tour
+          usage: demo
+          description: 'head_tour'
+
+      head_nod:
+        joints: [head_1_joint, head_2_joint]
+        times_from_start: [0.1, 0.8, 1.6]
+        positions: [0.0, 0.0,
+                    0.0, -0.4,
+                    0.0, 0.0]
+        meta:
+          name: Head Nod
+          usage: demo
+          description: head_nod
+
+      head_down:
+        joints: [head_1_joint, head_2_joint]
+        times_from_start: [0.1, 0.8]
+        positions: [0.0, 0.0,
+                    0.0, -0.4]
+        meta:
+          name: Head Down
+          usage: demo
+          description: head_down
+
+      head_front:
+        joints: [head_1_joint, head_2_joint]
+        times_from_start: [0.8]
+        positions: [0.0, 0.0]
+        meta:
+          name: Head Front
+          usage: demo
+          description: head_front
+
+      head_shake:
+        joints: [head_1_joint, head_2_joint]
+        times_from_start: [0.1, 0.8, 1.5, 2.2, 2.9, 3.6, 4.3]
+        positions: [0.0, 0.0,
+                   -0.4, 0.0,
+                    0.0, 0.0,
+                    0.4, 0.0,
+                    0.0, 0.0,
+                   -0.4, 0.0,
+                    0.0, 0.0]
+        meta:
+          name: Head Shake
+          usage: demo
+          description: head_shake
+
+
+    ######### CUSTOM MOTIONS FROM PAL PC under ../motions FORMATED TO WORK IN SIM  ####
+
+      driving:
+        joints:
+        - torso_lift_joint
+        - arm_1_joint
+        - arm_2_joint
+        - arm_3_joint
+        - arm_4_joint
+        - arm_5_joint
+        - arm_6_joint
+        - arm_7_joint
+        meta:
+          description: Go home than to driving position
+          name: Driving
+          usage: demo
+        positions:
+        - 0.25
+        - 0.20
+        - 0.35
+        - -0.20
+        - 1.94
+        - -1.57
+        - 1.37
+        - -1.58
+        - 0.18
+        - 0.50
+        - -1.34
+        - -0.48
+        - 1.94
+        - -1.49
+        - 1.37
+        - -1.58
+        - 0.15
+        - 0.50
+        - -1.34
+        - -0.48
+        - 1.94
+        - -1.49
+        - 1.37
+        - 0.0
+        - 0.15
+        - 0.166
+        - -1.387
+        - -0.165
+        - 2.0
+        - -1.49
+        - 1.37
+        - 0.0
+        times_from_start:
+        - 0.5
+        - 4.0
+        - 7.0
+        - 8.5
+      
+      driving_to_home:
+        joints:
+        - torso_lift_joint
+        - arm_1_joint
+        - arm_2_joint
+        - arm_3_joint
+        - arm_4_joint
+        - arm_5_joint
+        - arm_6_joint
+        - arm_7_joint
+        meta:
+          name: Driving to home
+          usage: demo
+          description: 'Go from driving to home position'
+        positions:
+        - 0.15
+        - 0.50
+        - -1.34
+        - -0.48
+        - 1.94
+        - -1.49
+        - 1.37
+        - 0.0
+        times_from_start:
+        - 1.5
+
+      from_handover_to_home:
+        joints:
+        - arm_1_joint
+        - arm_2_joint
+        - arm_3_joint
+        - arm_4_joint
+        - arm_5_joint
+        - arm_6_joint
+        - arm_7_joint
+        meta:
+          description: ''
+          name: From handover to home
+          usage: ''
+        positions:
+        - 0.68
+        - -1.5
+        - -2.2
+        - 1.94
+        - -1.49
+        - 1.21
+        - -0.01
+        - 0.5
+        - -1.34
+        - -0.48
+        - 1.94
+        - -1.49
+        - 1.37
+        - 0.0
+        times_from_start:
+        - 0.0
+        - 2.5
+
+      from_home_to_handover:
+        joints:
+        - arm_1_joint
+        - arm_2_joint
+        - arm_3_joint
+        - arm_4_joint
+        - arm_5_joint
+        - arm_6_joint
+        - arm_7_joint
+        meta:
+          description: ''
+          name: From home to handover
+          usage: ''
+        positions:
+        - 0.5
+        - -1.34
+        - -0.48
+        - 1.94
+        - -1.49
+        - 1.37
+        - 0.0
+        - 0.68
+        - -1.5
+        - -2.2
+        - 1.94
+        - -1.49
+        - 1.21
+        - -0.01
+        times_from_start:
+        - 0.0
+        - 2.25
+      from_home_to_place:
+        joints:
+        - arm_1_joint
+        - arm_2_joint
+        - arm_3_joint
+        - arm_4_joint
+        - arm_5_joint
+        - arm_6_joint
+        - arm_7_joint
+        meta:
+          description: ''
+          name: 'From home to place '
+          usage: ''
+        positions:
+        - 0.5
+        - -1.34
+        - -0.48
+        - 1.94
+        - -1.49
+        - 1.37
+        - 0.0
+        - 0.68
+        - -1.5
+        - -2.2
+        - 1.94
+        - -1.49
+        - -1.39
+        - -0.01
+        times_from_start:
+        - 0.0
+        - 6.0
+
+      from_place_to_home:
+        joints:
+        - arm_1_joint
+        - arm_2_joint
+        - arm_3_joint
+        - arm_4_joint
+        - arm_5_joint
+        - arm_6_joint
+        - arm_7_joint
+        meta:
+          description: ''
+          name: 'From place to home '
+          usage: ''
+        positions:
+        - 0.68
+        - -1.5
+        - -2.2
+        - 1.94
+        - -1.49
+        - -1.39
+        - -0.01
+        - 0.5
+        - -1.34
+        - -0.48
+        - 1.94
+        - -1.49
+        - 1.37
+        - 0.0
+        times_from_start:
+        - 0.0
+        - 4.25
+
+      home_to_driving:
+        joints:
+        - torso_lift_joint
+        - arm_1_joint
+        - arm_2_joint
+        - arm_3_joint
+        - arm_4_joint
+        - arm_5_joint
+        - arm_6_joint
+        - arm_7_joint
+        meta:
+          description: Go from home to driving position
+          name: From home to driving
+          usage: demo
+        positions:
+        - 0.15
+        - 0.166
+        - -1.387
+        - -0.165
+        - 2.0
+        - -1.49
+        - 1.37
+        - 0.0
+        times_from_start:
+        - 1.5
+
+      home_to_snake:
+        joints:
+        - torso_lift_joint
+        - arm_1_joint
+        - arm_2_joint
+        - arm_3_joint
+        - arm_4_joint
+        - arm_5_joint
+        - arm_6_joint
+        - arm_7_joint
+        meta:
+          description: Go from home to snake position
+          name: From home to snake
+          usage: demo
+        positions:
+        - 0.187
+        - 0.35
+        - -0.77
+        - -0.30
+        - 2.16
+        - -1.49
+        - 1.37
+        - 0.0
+        - 0.228
+        - 0.18
+        - -0.215
+        - -0.57
+        - 2.168
+        - -1.44
+        - 1.37
+        - 0.0
+        - 0.158
+        - 0.07
+        - -0.215
+        - -2.815
+        - 2.03
+        - 0.2
+        - -1.25
+        - 0.0
+        times_from_start:
+        - 0.6
+        - 1.2
+        - 4.0
+
+      torso_low:
+        joints:
+        - torso_lift_joint
+        positions:
+        - 0.15
+        times_from_start:
+        - 2.0
+        meta:
+          name: Torso Low
+          usage: demo
+          description: 'Move torso to low position (0.15)'
+
+      torso_mid:
+        joints:
+        - torso_lift_joint
+        positions:
+        - 0.22
+        times_from_start:
+        - 2.0
+        meta:
+          name: Torso Mid
+          usage: demo
+          description: 'Move torso to mid position (0.22)'
+
+      torso_top:
+        joints:
+        - torso_lift_joint
+        positions:
+        - 0.35
+        times_from_start:
+        - 2.0
+        meta:
+          name: Torso Top
+          usage: demo
+          description: 'Move torso to top position (0.35)'
+
+      head_sweep:
+        joints: [head_1_joint, head_2_joint]
+        positions: [0.0, 0.01,
+                    1.2, 0.01,
+                   -1.19, 0.01]
+        times_from_start: [0.0, 2.25, 5.0]
+        meta:
+          name: head_sweep
+          usage: ''
+          description: ''
+      
+      head_right:
+        joints: [head_1_joint, head_2_joint]
+        positions: [0.0, 0.00,
+                    1.0, 0.00]
+        times_from_start: [0.0, 2.25]
+        meta:
+          name: head_sweep
+          usage: ''
+          description: ''
+
+      head_left:
+        joints: [head_1_joint, head_2_joint]
+        positions: [0.0, 0.00,
+                    -1.0, 0.00]
+        times_from_start: [0.0, 2.25]
+        meta:
+          name: head_sweep
+          usage: ''
+          description: ''
+  
+      torso_nav:
+        joints:
+        - torso_lift_joint
+        positions:
+        - 0.15
+        times_from_start:
+        - 2.0
+        meta:
+          name: torso_nav
+          usage: ''
+          description: ''
+

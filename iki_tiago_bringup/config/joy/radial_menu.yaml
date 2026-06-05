@@ -1,0 +1,19 @@
+/**:
+  ros__parameters:
+    joy_topic: /joy
+    axis_x: 0 # Left stick -> left 1 | right -1
+    axis_y: 1 # Left stick -> up 1 | down -1
+    select_button: 1 # a
+    deadzome: 0.25
+
+    appearance:
+      inner_radius: 90.0
+      outer_radius: 220.0
+      normal_color: [34.0, 139.0, 180.0, 210.0]
+      hover_color: [255.0, 159.0, 28.0, 240.0]
+      text_color: [250.0, 250.0, 250.0, 255.0]
+      font_family: "DejaVu Sans"
+      fonz_size: 20.0
+      background_alpha: 180.0
+      offset_x: -300.0
+      offset_y: 0.0

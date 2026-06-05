@@ -1,0 +1,4 @@
+/**:
+  ros__parameters:
+    server_host: '192.168.66.68'
+    server_port: 43007

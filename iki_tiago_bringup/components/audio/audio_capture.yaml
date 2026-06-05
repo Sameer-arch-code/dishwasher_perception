@@ -1,0 +1,8 @@
+package: audio_capture
+plugin: audio_capture::AudioCaptureNode
+remappings:
+  audio: /audio_capture/audio
+  audio_stamped: /audio_capture/audio_stamped
+  audio_info: /audio_capture/audio_info
+  disable: /tts/tts_is_running
+params: audio.yaml@/**.ros__parameters

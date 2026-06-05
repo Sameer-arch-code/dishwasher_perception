@@ -1,0 +1,45 @@
+key: home_to_snake
+name: From home to snake
+usage: demo
+description: "Go from home to snake position"
+
+joints:
+  - torso_lift_joint
+  - arm_1_joint
+  - arm_2_joint
+  - arm_3_joint
+  - arm_4_joint
+  - arm_5_joint
+  - arm_6_joint
+  - arm_7_joint
+
+positions:
+  - 0.187
+  - 0.35
+  - -0.77
+  - -0.30
+  - 2.16
+  - -1.49
+  - 1.37
+  - 0.0
+  - 0.228
+  - 0.18
+  - -0.215
+  - -0.57
+  - 2.168
+  - -1.44
+  - 1.37
+  - 0.0
+  - 0.158
+  - 0.07
+  - -0.215
+  - -2.815
+  - 2.03
+  - 0.2
+  - -1.25
+  - 0.0
+
+times_from_start:
+  - 0.8
+  - 1.6
+  - 5.0

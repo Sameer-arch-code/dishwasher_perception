@@ -1,0 +1,36 @@
+<CycloneDDS>
+  <Domain>
+    <General>
+      <Interfaces>
+        <!-- Pick whichever NIC has an IP in 192.168.66.0/24 -->
+        <NetworkInterface address="192.168.66.0" presence_required="false"/>
+
+      </Interfaces>
+
+      <!-- Keep multicast only for discovery; everything else unicast -->
+      <AllowMulticast>spdp</AllowMulticast>
+      <!-- Receive multicast only on the preferred interface(s) above -->
+      <MulticastRecvNetworkInterfaceAddresses>preferred</MulticastRecvNetworkInterfaceAddresses>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <Peers>
+	      <Peer Address="192.168.66.66"/>
+        <Peer Address="192.168.66.67"/>
+        <Peer Address="192.168.66.68"/>
+        <Peer Address="192.168.66.69"/>
+        <Peer Address="localhost"/>
+      </Peers>
+      <MaxAutoParticipantIndex>500</MaxAutoParticipantIndex>
+    </Discovery>
+    <Internal>
+      <Watermarks>
+        <WhcHigh>2000kB</WhcHigh>
+      </Watermarks>
+    </Internal>
+    <Tracing>
+      <Verbosity>config</Verbosity>
+      <OutputFile>${HOME}/.ros/log/cdds.log</OutputFile>
+    </Tracing>
+  </Domain>
+</CycloneDDS>

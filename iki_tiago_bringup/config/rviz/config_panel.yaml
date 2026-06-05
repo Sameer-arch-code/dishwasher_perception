@@ -1,0 +1,34 @@
+rviz_config_panel:
+  ros__parameters:
+    configs: ["tiago", "moveit", "mapping", "nav", "tasks"]
+
+    tiago:
+      name: "Tiago"
+      tooltip: "switch to tiago config"
+      path: /root/ros2_ws/src/iki_tiago_bringup/config/rviz/tiago.rviz
+
+    moveit:
+      name: "MoveIt"
+      tooltip: "switch to moveit config"
+      path: /root/ros2_ws/src/iki_tiago_bringup/config/rviz/moveit.rviz
+
+    mapping:
+      name: "Mapping"
+      tooltip: "switch to mapping config"
+      path: /root/ros2_ws/src/iki_tiago_bringup/config/rviz/mapping.rviz
+
+    # nav:
+    #   name: "Advanced Navigation"
+    #   tooltip: "switch to advanced navigation config"
+    #   path: /root/ros2_ws/src/iki_tiago_bringup/config/rviz/advanced_navigation.rviz
+
+    nav:
+      name: "Nav2"
+      tooltip: "switch to nav2 config"
+      path: /root/ros2_ws/src/iki_tiago_bringup/config/rviz/nav2.rviz
+
+    tasks:
+      name: "Tasks"
+      tooltip: "switch to tasks config"
+      path: /root/ros2_ws/src/iki_tiago_bringup/config/rviz/tasks.rviz
+

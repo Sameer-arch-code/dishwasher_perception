@@ -1,0 +1,42 @@
+package: yeet_to_3d
+plugin: yeet_to_3d::YeetTo3DNode
+params:
+  # Enable debug logging and visualization markers
+  debug: true
+
+  # How long debug markers (spheres, bbox cubes) stay visible in RViz (seconds).
+  debug_marker_lifetime_sec: 10.0
+
+  # TF frame that points are transformed into before filtering/returning.
+  # base_footprint is Z-up: ground is Z=0, so the ground filter works correctly here.
+  target_frame: "base_footprint"
+
+  filters:
+    ground:
+      # Remove points below this Z value in target_frame (metres).
+      # Set to a small positive value so the ground plane itself is excluded.
+      enabled: true
+      z_min: 0.04 # 2 cm above ground
+
+    wall:
+      # Remove points beyond a distance threshold along one axis.
+      # Example: camera facing +X, wall at 2 m → axis: x, threshold: 2.0, remove_greater: true
+      enabled: false
+      axis: "x" # 'x', 'y', or 'z'
+      threshold: 2.0 # metres
+      remove_greater: true
+
+  segmentation:
+    # Maximum Z difference between two neighbouring pixels for them to be
+    # considered part of the same connected component.
+    depth_jump_thresh: 0.02 # metres
+
+    # Components with fewer points than this are discarded as noise.
+    min_component_size: 500
+
+    # Connectivity used when building components.
+    # false = 4-connected (N/S/E/W), true = 8-connected (diagonals too)
+    use_8_connected: true
+
+    # Maximum 3-D Euclidean distance between neighbours to allow connection.
+    spatial_dist_thresh: 0.02 # metres

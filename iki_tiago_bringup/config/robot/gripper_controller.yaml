@@ -1,0 +1,21 @@
+${EE_SIDE_PREFIX}_controller:
+  ros__parameters:
+    type: joint_trajectory_controller/JointTrajectoryController
+    joints:
+      - ${EE_SIDE_PREFIX}_right_finger_joint
+      - ${EE_SIDE_PREFIX}_left_finger_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+    allow_stalling: true
+    stall_velocity_threshold: 0.15
+    stall_timeout: 0.02
+
+    constraints:
+      goal_time: 1.0
+      stopped_velocity_tolerance: 5.0
+      ${EE_SIDE_PREFIX}_right_finger_joint:
+        goal: 0.3
+      ${EE_SIDE_PREFIX}_left_finger_joint:
+        goal: 0.3

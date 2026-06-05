@@ -1,0 +1,10 @@
+description: 'Move torso to top position'
+joints:
+- torso_lift_joint
+key: torso_top
+name: Torso Top
+positions:
+- 0.35
+times_from_start:
+- 2.0
+usage: demo

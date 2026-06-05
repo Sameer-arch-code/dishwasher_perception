@@ -1,0 +1,18 @@
+package: orbbec_camera
+plugin: orbbec_camera::OBCameraNodeDriver
+remappings:
+  /tiago/femto_mega/color/camera_info: /femto_mega/color/camera_info
+  /tiago/femto_mega/color/image_raw: /femto_mega/color/image_raw
+  /tiago/femto_mega/color/image_raw/compressed: /femto_mega/color/image_raw/compressed
+  /tiago/femto_mega/color/image_raw/compressedDepth: /femto_mega/color/image_raw/compressedDepth
+  /tiago/femto_mega/color/image_raw/theora: /femto_mega/color/image_raw/theora
+  /tiago/femto_mega/depth/camera_info: /femto_mega/depth/camera_info
+  /tiago/femto_mega/depth/image_raw: /femto_mega/depth/image_raw
+  /tiago/femto_mega/depth/image_raw/compressed: /femto_mega/depth/image_raw/compressed
+  /tiago/femto_mega/depth/image_raw/compressedDepth: /femto_mega/depth/image_raw/compressedDepth
+  /tiago/femto_mega/depth/image_raw/theora: /femto_mega/depth/image_raw/theora
+  /tiago/femto_mega/depth/points: /femto_mega/depth/points
+  /tiago/femto_mega/depth_registered/points: /femto_mega/depth_registered/points
+  /tiago/femto_mega/depth_filter_status: /femto_mega/depth_filter_status
+  /tiago/femto_mega/depth_to_color: /femto_mega/depth_to_color
+params: sensors/femto_mega.yaml@/**.ros__parameters

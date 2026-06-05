@@ -1,0 +1,10 @@
+description: 'Move torso to low position'
+joints:
+- torso_lift_joint
+key: torso_low
+name: Torso Low
+positions:
+- 0.15
+times_from_start:
+- 2.0
+usage: ''

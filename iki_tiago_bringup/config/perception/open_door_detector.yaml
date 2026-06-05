@@ -1,0 +1,6 @@
+open_door_detector:
+  ros__parameters: #tiago has 666 scans
+    index_left: 320
+    index_right: 350
+    threshold: 1.0
+    debug: true

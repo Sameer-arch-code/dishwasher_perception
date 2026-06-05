@@ -1,0 +1,12 @@
+description: ''
+joints:
+- head_1_joint
+- head_2_joint
+key: head_left
+name: head_left
+positions:
+- 1.00
+- 0.0
+times_from_start:
+- 2.0
+usage: ''

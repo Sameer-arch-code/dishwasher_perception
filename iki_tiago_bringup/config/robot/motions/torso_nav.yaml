@@ -1,0 +1,10 @@
+description: ''
+joints:
+- torso_lift_joint
+key: torso_nav
+name: torso_nav
+positions:
+- 0.15
+times_from_start:
+- 2.0
+usage: ''

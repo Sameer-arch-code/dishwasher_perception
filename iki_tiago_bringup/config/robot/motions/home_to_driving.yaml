@@ -1,0 +1,28 @@
+key: home_to_driving
+name: From home to driving
+usage: demo
+description: "Go from home to driving position"
+
+joints:
+  - torso_lift_joint
+  - arm_1_joint
+  - arm_2_joint
+  - arm_3_joint
+  - arm_4_joint
+  - arm_5_joint
+  - arm_6_joint
+  - arm_7_joint
+
+# Single waypoint: 1 time × 8 joints = 8 values
+positions:
+  - 0.15
+  - 0.166
+  - -1.387
+  - -0.165
+  - 2.0
+  - -1.49
+  - 1.37
+  - 0.0
+
+times_from_start:
+  - 1.5
