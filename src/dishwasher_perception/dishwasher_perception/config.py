@@ -1,5 +1,11 @@
 #create_single_depth_slice_mask CONSTANTS
 
+#important stuff
+# door length = 0.72
+# stand robot at : 0.85
+
+#ideal distance to capture door width: 0.3 to 0.65
+
 NEAR_M = 0.3
 FAR_M = 0.65
 MIN_Z_M = 0.07
