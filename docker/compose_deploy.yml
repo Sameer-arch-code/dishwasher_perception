@@ -20,4 +20,10 @@ services:
       # - $ROS_BAGS:/root/rosbags
       - ../src/:/root/ros2_ws/src
       - ../iki_tiago_bringup:/root/ros2_ws/src/iki_tiago_bringup
-    command: tail -f /dev/null    
+    command: >
+      bash -c "
+        cd /root/ros2_ws &&
+        colcon build &&
+        source install/setup.bash &&
+        ros2 launch dishwasher_perception bringup.launch.py markers:=true
+      "      
