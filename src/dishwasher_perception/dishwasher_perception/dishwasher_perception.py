@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from .config import *
 import rclpy
 import math
 import sys
@@ -45,20 +46,7 @@ FILTERED_DEPTH_WINDOW = "Filtered Depth"
 
 MASK_WINDOW = "rack Mask"
 
-#create_single_depth_slice_mask CONSTANTS
 
-NEAR_M = 0.3
-FAR_M = 0.65
-MIN_Z_M = 0.07
-MAX_Z_M = 0.2
-
-#create_filtered_depth_image CONSTANT
-
-DISHWASHER_THICKNESS = 0.15
-
-#create_depth_mask_from_min CONSTANTS
-
-MAX_DEPTH_MM = 50
 
 
 class DishwasherPerceptionROS(Node):
@@ -121,14 +109,12 @@ class DishwasherPerceptionROS(Node):
         self.publish_cropped_pc = False
 
 
-        self.left_dx  = 0.3
-        self.right_dx = 0.3
-
-        self.front_dy  = 0.0
-        self.back_dy = 0.6
-
-        self.down_dz  = 0.2
-        self.up_dz    = 0.0
+        self.left_dx  = LEFT_DX
+        self.right_dx = RIGHT_DX
+        self.back_dy  = BACK_DY
+        self.front_dy = FRONT_DY
+        self.down_dz  = DOWN_DZ
+        self.up_dz    = UP_DZ
 
         # QoS profile
         qos = QoSProfile(depth=5, reliability=QoSReliabilityPolicy.BEST_EFFORT)
