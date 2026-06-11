@@ -17,7 +17,14 @@ MAX_Z_M = 0.2
 
 DISHWASHER_THICKNESS = 0.15
 
-#create_depth_mask_from_min CONSTANTS
+
+#create_filtered_depth_image  CONSTANTS   
+
+
+HEIGHT_MIN_M = 0.45
+HEIGHT_MAX_M = 0.7
+
+#create_depth_mask_from_min CONSTANTS  - created at the last step (after complete point cloud fitering)
 
 MAX_DEPTH_MM = 50
 
@@ -30,3 +37,9 @@ BACK_DY  = 0.6
 FRONT_DY = 0.0
 DOWN_DZ  = 0.2
 UP_DZ    = 0.0
+
+
+#for rack percentage
+
+RACK_AND_DISTANCE_OFFSET = 0.06
+DEPTH_OF_DISHWASHER = 0.47

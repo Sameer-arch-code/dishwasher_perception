@@ -30,7 +30,7 @@ import tf2_geometry_msgs
 from yolo_msgs.msg import DetectionArray
 from std_srvs.srv import Trigger
 from dishwasher_perception_interfaces.srv import GetPose
-
+from dishwasher_perception_interfaces.srv import GetPoseAndBasketOutPercentage
 
 # Constants
 TARGET_FRAME_ID = "base_link"
@@ -62,6 +62,7 @@ class DishwasherPerceptionROS(Node):
             self.trigger_callback
         )
         self.srv_pose = self.create_service(GetPose, 'getPose', self.get_pose_callback)
+        self.srv_pose_and_percentage = self.create_service(GetPoseAndBasketOutPercentage, 'getPoseAndBasketOutPercentage', self.get_pose_and_basket_out_percentage_callback)
 
         self.ultimate_pose = None
 
@@ -206,12 +207,8 @@ class DishwasherPerceptionROS(Node):
     def point_cloud_cb(self, msg):
         if self.publish_markers:
             self.publish_cpc_marker()
-        self.get_logger().info('point cloud sub works')
-        if not self.publish_cropped_pc:
-            self.get_logger().info('cropped cloud calc not begins')
+        if not self.publish_cropped_pc:     
             return
-
-        self.get_logger().info('cropped cloud calc begins')
 
         cloud_frame = msg.header.frame_id
 
@@ -273,7 +270,7 @@ class DishwasherPerceptionROS(Node):
             if (self.get_clock().now() - start_time).nanoseconds / 1e9 > timeout:
                 self.get_logger().warn('Timeout waiting for pose data')
                 response.success = False
-                response.message = 'Timeout: failed to retrieve pose, the door could be closed, if its open, we are cooked!!'
+                response.message = 'Timeout: failed to retrieve pose, the door could be closed, if its open, we are cooked!! Allign me and try again'
                 response.pose = Pose()
                 return response
 
@@ -296,6 +293,48 @@ class DishwasherPerceptionROS(Node):
 
         return response
 
+
+    def get_pose_and_basket_out_percentage_callback(self, request, response):
+        self.get_logger().info('Pose request received!')
+        distance = request.distance
+
+        # Wait up to 5 seconds for a valid pose
+        timeout = 5.0
+        start_time = self.get_clock().now()
+
+        while True:
+            pose = self.get_current_pose()
+
+            if pose is not None:
+                percentage = (((distance - RACK_AND_DISTANCE_OFFSET) - pose.position.x)/DEPTH_OF_DISHWASHER)*100
+                break
+            if (self.get_clock().now() - start_time).nanoseconds / 1e9 > timeout:
+                self.get_logger().warn('Timeout waiting for pose data')
+                response.success = False
+                response.message = 'Timeout: failed to retrieve pose, the door could be closed, if its open, we are cooked!! Allign me and try again'
+                response.pose = Pose()
+                return response
+
+        try:
+            response.pose = pose
+            response.success = True
+            response.message = 'Pose retrieved successfully'
+            response.percentage = percentage
+
+            if pose.position.x != 0.0 or pose.position.y != 0.0 or pose.position.z != 0.0:
+                if self.cpc_param:
+
+                    self.publish_cropped_pc = True
+                if self.markers:
+                    self.publish_markers = True
+
+        except Exception as e:
+            self.get_logger().error(f'Failed to get pose: {str(e)}')
+            response.pose = Pose()
+            response.success = False
+            response.message = f'Exception: {str(e)}'
+
+        return response
     
 
     def get_current_pose(self):
@@ -1080,7 +1119,7 @@ class DishwasherPerceptionROS(Node):
 
     
 
-    def create_filtered_depth_image(self, min_y_m=-0.1, max_y_m=0.1, min_z_m=0.45, max_z_m=0.7):
+    def create_filtered_depth_image(self, min_y_m=-0.1, max_y_m=0.1, min_z_m = HEIGHT_MIN_M, max_z_m = HEIGHT_MAX_M):
         if self.depth_image is None or self.camera_info is None:
             return None
 
