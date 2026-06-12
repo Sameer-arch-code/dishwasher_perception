@@ -25,9 +25,8 @@ Above image's location: documentation/dishwasher's rack's pose estimation algori
 
 
 ## Prerequisites
-launch file and config file arguments
 
-There are three things to be ready, to make it work:
+There are three things to make it work:
 
 
 - [ ]  **Population of the config file:** Explanation of variables can be found in the config file as comments.
