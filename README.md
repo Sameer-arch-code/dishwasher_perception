@@ -15,11 +15,11 @@ Above image's location: documentation/dishwasher's rack's pose estimation algori
 
 ## Visuals
 
-1. filtered depth image:
+1. **filtered depth image:**
 
 ![filtered depth image](documentation/filtered depth image.png)
 
-2. pose estimation:
+2. **pose estimation:**
 
 ![filtered depth image](documentation/pose estimation.png)
 
