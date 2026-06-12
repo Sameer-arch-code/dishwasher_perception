@@ -2,12 +2,17 @@
 
 
 ## Description
-Detects if dishwasher is open, estimates pose, estimate the percentage of rack (basket) outside.
+Detects if dishwasher is open, estimates pose, estimates the percentage of rack (basket) outside.
+Explanation of algorithmn:
 
+
+![Explanation of algorithmn](documentation/dishwasher's rack's pose estimation algorithmn.jpg)
 
 
 ## Visuals
 demo images:
+
+
 
 ### Filtered depth image:
 
