@@ -41,5 +41,5 @@ UP_DZ    = 0.0
 
 #for rack percentage
 
-RACK_AND_DISTANCE_OFFSET = 0.06
+RACK_AND_DISTANCE_OFFSET = 0.06       #tuck the rack fully in and find how out it is, when compared to inner most LIdar depth (hard to describe XD. Check the readMe)
 DEPTH_OF_DISHWASHER = 0.47
