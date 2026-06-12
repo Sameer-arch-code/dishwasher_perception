@@ -61,8 +61,8 @@ class DishwasherPerceptionROS(Node):
             'is_dishwasher_open',
             self.trigger_callback
         )
-        self.srv_pose = self.create_service(GetPose, 'getPose', self.get_pose_callback)
-        self.srv_pose_and_percentage = self.create_service(GetPoseAndBasketOutPercentage, 'getPoseAndBasketOutPercentage', self.get_pose_and_basket_out_percentage_callback)
+        self.srv_pose = self.create_service(GetPose, 'get_pose', self.get_pose_callback)
+        self.srv_pose_and_percentage = self.create_service(GetPoseAndBasketOutPercentage, 'get_pose_and_basket_out_percentage', self.get_pose_and_basket_out_percentage_callback)
 
         self.ultimate_pose = None
 
