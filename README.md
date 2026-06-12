@@ -6,6 +6,7 @@ Detects if dishwasher is open, estimates pose, estimates the percentage of rack 
 
 Custom interfaces are in a separate repo : [git@gitlab.rwu.de:prj-iki-ros2/playground/dishwasher_perception_interfaces.git](git@gitlab.rwu.de:prj-iki-ros2/playground/dishwasher_perception_interfaces.git), and must be cloned as a submodule.
 
+<git@gitlab.rwu.de:prj-iki-ros2/playground/dishwasher_perception_interfaces.git>
 Explanation of algorithmn:
 
 ![Explanation of algorithmn](documentation/dishwasher's rack's pose estimation algorithmn.jpg)
