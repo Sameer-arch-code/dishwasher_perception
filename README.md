@@ -4,6 +4,8 @@
 ## Description
 Detects if dishwasher is open, estimates pose, estimates the percentage of rack (basket) outside.
 
+Custom interfaces are in a separate repo : git@gitlab.rwu.de:prj-iki-ros2/playground/dishwasher_perception_interfaces.git, and must be cloned as a submodule.
+
 Explanation of algorithmn:
 
 ![Explanation of algorithmn](documentation/dishwasher's rack's pose estimation algorithmn.jpg)
@@ -28,8 +30,11 @@ launch file and config file arguments
 There are three things to be ready, to make it work:
 
 
-- [ ]  **Population of the config file**
+- [ ]  **Population of the config file:** Explanation of variables can be found in the config file as comments.
+    
 - [ ]  **Allignment of Robot**
+    - **distance**: Robot should be as close as possible. dishwasher's door's length, and arm's length shuold be accounted.
+    - **angle**: Robot should be facing perfectly the dishwasher. Angular offsets has impact of FOV - the robot might not be able to see the dishwasher.
 - [ ]  **Head Direction**
 
     - Head should be pointed at (distance of dishwasher from base_link, 0, 0.3 to 0.35). 
@@ -69,7 +74,25 @@ There are two compose files:
 
 
 ## Usage
-talk about services
+There are three services:
+
+1. **is_dishwasher_open**
+    - Its a Trigger service (retuns true or false)
+
+    - Service Request snippet: ros2 service call is_dishwasher_open std_srvs/srv/Trigger {}
+requester: making request: std_srvs.srv.Trigger_Request()
+
+2. **get_pose**
+    - Returns the pose of rack.
+
+    - Service Request snippet: ros2 service call /get_pose dishwasher_perception_interfaces/srv/GetPose {}
+
+
+1. **get_pose_and_basket_out_percentage**
+    - Returns the pose of rack, and percentage of how outside it is.
+
+    - Service Request snippet: ros2 service call /get_pose_and_basket_out_percentage dishwasher_perception_interfaces/srv/GetPoseAndBasketOutPercentage "{distance: 1.0}
+
 
 
 
