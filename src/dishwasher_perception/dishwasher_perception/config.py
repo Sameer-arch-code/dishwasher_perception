@@ -6,7 +6,7 @@ MIN_Z_M = 0.07  # minimum threshold for the height the door is after its opened.
 MAX_Z_M = 0.2   # maximum threshold for the height the door is after its opened.
 
 #create_filtered_depth_image CONSTANT
-DISHWASHER_THICKNESS = 0.15   # thichness of dishwasher's body
+DISHWASHER_THICKNESS = 0.14   # thichness of dishwasher's body
 
 #create_filtered_depth_image  CONSTANTS   
 HEIGHT_MIN_M = 0.45  # how high is the bottom of rack?

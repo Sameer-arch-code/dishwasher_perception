@@ -42,9 +42,13 @@ MASK_KERNEL_SIZE = (5, 5)          # removes noise
 
 # Depth viewer window name
 DEPTH_WINDOW_NAME = "Depth Image (click to measure)"
-FILTERED_DEPTH_WINDOW = "Filtered Depth"
+FILTERED_DEPTH_WINDOW = "Dishwasher Rack's filtered point cloud"
 
 MASK_WINDOW = "rack Mask"
+
+
+
+RAW_POSE_WINDOW = "Raw Image/Frame with Pose"
 
 
 
@@ -172,6 +176,7 @@ class DishwasherPerceptionROS(Node):
     
     def _init_debug_ui(self):
         cv.namedWindow(FILTERED_DEPTH_WINDOW, cv.WINDOW_NORMAL)
+        #cv.namedWindow(RAW_POSE_WINDOW, cv.WINDOW_NORMAL)
         cv.resizeWindow(FILTERED_DEPTH_WINDOW, 848, 480)
 
         # Set up the interactive depth viewer window
@@ -985,15 +990,216 @@ class DishwasherPerceptionROS(Node):
                             
                             # Display pose on image
                             text = f"Pose: ({final_pose.position.x:.2f}, {final_pose.position.y:.2f}, {final_pose.position.z:.2f})"
-                            cv.putText(mask, text, (mask.shape[1] - 350, 30), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+                            # cv.putText(mask, text, (mask.shape[1] - 350, 30), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
 
 
+                        # Display pose on image
+                        label = "Pose.position (x,y,z):"
+                        values = f"({final_pose.position.x:.2f}, {final_pose.position.y:.2f}, {final_pose.position.z:.2f})"
+
+                        x_pos = mask.shape[1] - 350
+                        y_pos = 30
+                        line_gap = 25  # vertical spacing between lines
+
+                        cv.putText(mask, label, (x_pos, y_pos), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+                        cv.putText(mask, values, (x_pos, y_pos + line_gap), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+
+                        
+
+                        # --- NEW: raw frame with pose overlay ---
+                        raw_display = cv.cvtColor(self.current_frame, cv.COLOR_RGB2BGR)
+                        cv.circle(raw_display, (center_x, y_to_consider), 10, (0, 255, 255), -1)
+                        self.draw_filled_arrow(
+                            raw_display,
+                            (center_x, raw_display.shape[0] - 1),
+                            (center_x, y_to_consider),
+                            (0, 0, 255),
+                        )
+
+                        self.draw_text_with_background(
+                            raw_display,
+                            [
+                                {
+                                    "text": "Distance.x from Robot's base_link: ",
+                                    "pos": (center_x + 15, y_to_consider + 150),
+                                    "font_scale": 0.7,
+                                    "thickness": 2,
+                                },
+                                {
+                                    "text": f"{final_pose.position.x:.2f} m",
+                                    "pos": (center_x + 100, y_to_consider + 220),
+                                    "font_scale": 2.5,
+                                    "thickness": 6,
+                                },
+                            ],
+                            None,
+                            None,
+                            color=(0, 255, 255),
+                            alpha=0.7, 
+                        )
+
+                        cv.putText(
+                            raw_display,
+                            "Distance.x from Robot's base_link: ",
+                            (center_x + 15, y_to_consider + 150),
+                            cv.FONT_HERSHEY_SIMPLEX,
+                            0.7,
+                            (255, 255, 255),
+                            2,
+                        )
+                        cv.putText(
+                            raw_display,
+                            f"{final_pose.position.x:.2f} m",
+                            (center_x + 100, y_to_consider + 220),
+                            cv.FONT_HERSHEY_SIMPLEX,
+                            2.5,
+                            (0, 255, 255),
+                            6,
+                        )
+
+
+                        percentage = (((1.025 - RACK_AND_DISTANCE_OFFSET) - final_pose.position.x)/DEPTH_OF_DISHWASHER)*100
+
+
+                        self.draw_text_with_background(
+                            raw_display,
+                            [
+                                {
+                                    "text": label,
+                                    "pos": (x_pos, y_pos),
+                                    "font_scale": 0.7,
+                                    "thickness": 2,
+                                    "color": (255, 0, 0),
+                                },
+                                {
+                                    "text": values,
+                                    "pos": (x_pos, y_pos + line_gap),
+                                    "font_scale": 0.7,
+                                    "thickness": 2,
+                                    "color": (0, 255, 255),
+                                },
+                                {
+                                    "text": "Rack extension:",
+                                    "pos": (x_pos, y_pos + 2 * line_gap + 20),
+                                    "font_scale": 0.7,
+                                    "thickness": 2,
+                                    "color": (255, 0, 0),
+                                },
+                                {
+                                    "text": f"{percentage:.2f}%",
+                                    "pos": (x_pos, y_pos + 5 * line_gap + 20),
+                                    "font_scale": 2.3,
+                                    "thickness": 6,
+                                    "color": (0, 255, 255),
+                                },
+                            ],
+                            None,
+                            None,
+                            alpha=0.7,
+                        )
+
+
+                        cv.putText(raw_display, label, (x_pos, y_pos), cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                        cv.putText(raw_display, values, (x_pos, y_pos + line_gap), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+
+                        cv.putText(
+                            raw_display,
+                            "Rack extension:",
+                            (x_pos, y_pos + 2 * line_gap+20),
+                            cv.FONT_HERSHEY_SIMPLEX,
+                            0.7,
+                            (255, 255, 255),
+                            2,
+                        )
+                        cv.putText(
+                            raw_display,
+                            f"{percentage:.2f}%",
+                            (x_pos, y_pos + 5 * line_gap+20),
+                            cv.FONT_HERSHEY_SIMPLEX,
+                            2.3,
+                            (0, 255, 255),
+                            6,
+                        )
+  
+                        cv.imshow(RAW_POSE_WINDOW, raw_display)
                         
                         
                         cv.imshow(MASK_WINDOW, processed_mask)
 
         cv.waitKey(1)
 
+    def draw_text_with_background(self,img, lines, x, y, color=(0, 255, 255), padding=10, alpha=0.5):
+        """
+        Draws one or more lines of text with a translucent black background behind them.
+
+        lines: list of dicts, each with keys:
+            'text', 'pos' (x, y), 'font_scale', 'thickness'
+        """
+        x1, y1 = float("inf"), float("inf")
+        x2, y2 = float("-inf"), float("-inf")
+
+        # Compute bounding box covering all lines
+        for line in lines:
+            (w, h), baseline = cv.getTextSize(
+                line["text"], cv.FONT_HERSHEY_SIMPLEX, line["font_scale"], line["thickness"]
+            )
+            lx, ly = line["pos"]
+            x1 = min(x1, lx)
+            y1 = min(y1, ly - h)
+            x2 = max(x2, lx + w)
+            y2 = max(y2, ly + baseline)
+
+        x1 -= padding
+        y1 -= padding
+        x2 += padding
+        y2 += padding
+
+        overlay = img.copy()
+        cv.rectangle(overlay, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 0), -1)
+        cv.addWeighted(overlay, alpha, img, 1 - alpha, 0, img)
+
+        for line in lines:
+            cv.putText(
+                img,
+                line["text"],
+                line["pos"],
+                cv.FONT_HERSHEY_SIMPLEX,
+                line["font_scale"],
+                line.get("color", color),
+                line["thickness"],
+            )
+
+    def draw_filled_arrow(self,img, pt1, pt2, color, shaft_width=6, head_width=24, head_length=30):
+        pt1 = np.array(pt1, dtype=float)
+        pt2 = np.array(pt2, dtype=float)
+
+        direction = pt2 - pt1
+        length = np.linalg.norm(direction)
+        if length == 0:
+            return
+        unit = direction / length
+        perp = np.array([-unit[1], unit[0]])  # perpendicular vector
+
+        # Point where shaft ends and head begins
+        head_start = pt2 - unit * head_length
+
+        # Shaft rectangle corners
+        shaft_pts = np.array([
+            pt1 + perp * (shaft_width / 2),
+            head_start + perp * (shaft_width / 2),
+            head_start - perp * (shaft_width / 2),
+            pt1 - perp * (shaft_width / 2),
+        ], dtype=np.int32)
+
+        # Arrowhead triangle corners
+        head_pts = np.array([
+            head_start + perp * (head_width / 2),
+            pt2,
+            head_start - perp * (head_width / 2),
+        ], dtype=np.int32)
+
+        cv.fillPoly(img, [shaft_pts], color)
+        cv.fillPoly(img, [head_pts], color)
 
     def create_depth_mask_from_min(self, filtered_depth_image, max_depth_mm, scale_to_color=True):
         """
