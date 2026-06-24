@@ -8,7 +8,7 @@ Custom interfaces are in a separate repo :(https://github.com/Sameer-arch-code/d
 
 **Explanation of algorithmn:**
 
-![Explanation of algorithmn](documentation/dishwasher's rack's pose estimation algorithmn.jpg)
+![Explanation of algorithm](documentation/dishwasher's%20rack's%20pose%20estimation%20algorithmn.jpg)
 
 Above image's location: documentation/dishwasher's rack's pose estimation algorithmn.jpg
 
