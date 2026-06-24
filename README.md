@@ -4,7 +4,7 @@
 ## Description
 Detects if dishwasher is open, estimates pose, estimates the percentage of rack (basket) outside.
 
-Custom interfaces are in a separate repo : [[https://gitlab.rwu.de/prj-iki-ros2/playground/dishwasher_perception_interfaces](https://gitlab.rwu.de/prj-iki-ros2/playground/dishwasher_perception_interfaces)](https://github.com/Sameer-arch-code/dishwasher_perception_interfaces.git), and must be cloned as a submodule.
+Custom interfaces are in a separate repo :(https://github.com/Sameer-arch-code/dishwasher_perception_interfaces.git), and must be cloned as a submodule.
 
 **Explanation of algorithmn:**
 
