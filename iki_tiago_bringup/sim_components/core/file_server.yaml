@@ -1,9 +1,0 @@
-package: filesystem
-plugin: filesystem::Filesystem
-params:
-  root:
-    entry_dir: /tmp/filesystem
-    allow_create_dirs: True
-    allow_overwrite: True
-  files:
-    queue_size: 100

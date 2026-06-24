@@ -1,7 +1,0 @@
-package: open_door_detector
-plugin: open_door_detector::OpenDoorDetector
-remappings:
-  ~/input: /scan
-  ~/is_door_open: ~/is_door_open
-  ~/debug_marker: ~/debug_marker
-params: perception/open_door_detector.yaml@open_door_detector.ros__parameters
