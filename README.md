@@ -14,12 +14,20 @@ Above image's location: documentation/dishwasher's rack's pose estimation algori
 
 
 ## Visuals
+1. **original depth image:**
 
-1. **filtered depth image:**
+![filtered depth image](documentation/dishwasher_original_point_cloud.png)
+
+1. **filtered dishwasher point cloud:**
+
+![filtered dishwasher point cloud](documentation/dishwasher_point_cloud_cropped.png)
+
+
+4. **filtered dishwasher rack:**
 
 ![filtered depth image](documentation/filtered%20depth%20image.png)
 
-2. **pose estimation:**
+4. **pose estimation:**
 
 ![pose estimation](documentation/pose%20estimation.png)
 
@@ -90,7 +98,7 @@ requester: making request: std_srvs.srv.Trigger_Request()
 1. **get_pose_and_basket_out_percentage**
     - Returns the pose of rack, and percentage of how outside it is.
 
-    - Service Request snippet: ros2 service call /get_pose_and_basket_out_percentage dishwasher_perception_interfaces/srv/GetPoseAndBasketOutPercentage "{distance: 1.0}
+    - Service Request snippet: ros2 service call /get_pose_and_basket_out_percentage dishwasher_perception_interfaces/srv/GetPoseAndBasketOutPercentage "{distance: 1.0}"
 
 
 
