@@ -2,7 +2,7 @@
 
 
 ## Description
-Detects if dishwasher is open, estimates pose, estimates the percentage of rack (basket) outside.
+Its a ROS2 Node - Detects if dishwasher is open, estimates pose, estimates the percentage of rack (basket) outside. 
 
 Custom interfaces are in a separate repo :(https://github.com/Sameer-arch-code/dishwasher_perception_interfaces.git), and must be cloned as a submodule.
 
